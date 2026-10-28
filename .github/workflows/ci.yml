@@ -18,6 +18,16 @@ on:
         description: Restore and save target/ and the Cargo registry, one cache per job.
         type: boolean
         default: false
+      cache-paths:
+        description: >-
+          Paths to cache per job, one per line (actions/cache syntax), such as the Go module cache
+          or a tool built from source; empty for none.
+        type: string
+        default: ''
+      cache-key-files:
+        description: The glob whose contents key the cache of cache-paths.
+        type: string
+        default: flake.lock
 
 permissions:
   contents: read
@@ -64,6 +74,12 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.job }}
+      - if: inputs.cache-paths != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.cache-paths }}
+          key: ci-${{ matrix.job }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(inputs.cache-key-files) }}
+          restore-keys: ci-${{ matrix.job }}-${{ runner.os }}-${{ runner.arch }}-
       - env:
           JOB: ${{ matrix.job }}
           # A job keeps what it wants uploaded here, such as a report or the logs of a failure.
