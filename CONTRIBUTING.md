@@ -24,5 +24,7 @@ only when its pin moves:
 3. After merging, move the pin in each caller (Renovate does it for the `github-actions` manager)
    and let each repository's CI pass before relying on the change.
 
-`Lint` runs actionlint (with shellcheck) on every workflow here; run it locally with
+`Lint` runs actionlint (with shellcheck) on every workflow here, and the tests of
+[`zeabur-oss-release`](release/README.md); run them locally with `nix develop`, then `actionlint` and
+`(cd release && go test ./...)`. Without the dev shell, actionlint alone is
 `nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint`.
