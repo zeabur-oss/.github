@@ -16,15 +16,13 @@ on:
         type: number
         default: 1
       rust-cache:
-        description: >-
-          Restore and save target/ and the Cargo registry, one cache per job. Never on a tag: the
-          release's run restores nothing that a run on main saved.
+        description: Restore and save target/ and the Cargo registry, one cache per job.
         type: boolean
         default: false
       cache-paths:
         description: >-
           Paths to cache per job, one per line (actions/cache syntax), such as the Go module cache
-          or a tool built from source; empty for none. Not on a tag, as rust-cache.
+          or a tool built from source; empty for none.
         type: string
         default: ''
       cache-key-files:
@@ -81,13 +79,13 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
       # rust-cache keys on `rustc -vV`: put the pinned toolchain from the dev shell on PATH first,
       # otherwise it fails ("Command failed: rustc -vV") or keys on the image's rustc.
-      - if: inputs.rust-cache && github.ref_type != 'tag'
+      - if: inputs.rust-cache
         run: dirname "$(nix develop --command bash -c 'command -v rustc')" >> "$GITHUB_PATH"
-      - if: inputs.rust-cache && github.ref_type != 'tag'
+      - if: inputs.rust-cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.job }}
-      - if: inputs.cache-paths != '' && github.ref_type != 'tag'
+      - if: inputs.cache-paths != ''
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ inputs.cache-paths }}
