@@ -2,7 +2,8 @@ name: CI
 
 # Every job a repository lists with `scripts/ci.sh --list`, each as `scripts/ci.sh <job>`. The
 # script enters the repository's Nix dev shell itself, so a job runs the same here and on any
-# Linux machine with Nix; this workflow only checks out, installs Nix and restores caches.
+# Linux machine with Nix; this workflow only checks out, installs Nix and restores caches. zizmor
+# checks the repository's own workflows.
 on:
   workflow_call:
     inputs:
@@ -15,13 +16,15 @@ on:
         type: number
         default: 1
       rust-cache:
-        description: Restore and save target/ and the Cargo registry, one cache per job.
+        description: >-
+          Restore and save target/ and the Cargo registry, one cache per job. Never on a tag: the
+          release's run restores nothing that a run on main saved.
         type: boolean
         default: false
       cache-paths:
         description: >-
           Paths to cache per job, one per line (actions/cache syntax), such as the Go module cache
-          or a tool built from source; empty for none.
+          or a tool built from source; empty for none. Not on a tag, as rust-cache.
         type: string
         default: ''
       cache-key-files:
@@ -52,6 +55,16 @@ jobs:
           [[ -n "$jobs" ]] || { echo "::error::scripts/ci.sh --list printed no jobs"; exit 1; }
           echo "jobs=[$jobs]" >> "$GITHUB_OUTPUT"
 
+  zizmor:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github
+
   job:
     name: ${{ matrix.job }}
     needs: list
@@ -68,13 +81,13 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
       # rust-cache keys on `rustc -vV`: put the pinned toolchain from the dev shell on PATH first,
       # otherwise it fails ("Command failed: rustc -vV") or keys on the image's rustc.
-      - if: inputs.rust-cache
+      - if: inputs.rust-cache && github.ref_type != 'tag'
         run: dirname "$(nix develop --command bash -c 'command -v rustc')" >> "$GITHUB_PATH"
-      - if: inputs.rust-cache
+      - if: inputs.rust-cache && github.ref_type != 'tag'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.job }}
-      - if: inputs.cache-paths != ''
+      - if: inputs.cache-paths != '' && github.ref_type != 'tag'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ inputs.cache-paths }}
