@@ -131,3 +131,7 @@ jobs:
 2. Optionally rehearse: run the repository's Release workflow by hand with the version.
 3. Push the tag `vX.Y.Z` from `main`. The workflow leaves a draft release.
 4. Check the draft and publish it. Releases are immutable once published.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md): signed-off commits ([DCO](DCO)) and Conventional Commits.
