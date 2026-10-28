@@ -95,9 +95,11 @@ jobs:
             git merge-base --is-ancestor HEAD origin/main ||
               { echo "::error::$VERSION is not on main"; exit 1; }
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "verify-platforms=$(jq -c . <<<"$PLATFORMS")" >> "$GITHUB_OUTPUT"
-          echo "finish-platforms=$(jq -c . <<<"$FINISH_PLATFORMS")" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "verify-platforms=$(jq -c . <<<"$PLATFORMS")"
+            echo "finish-platforms=$(jq -c . <<<"$FINISH_PLATFORMS")"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: build (${{ matrix.os }}-${{ matrix.arch }})
