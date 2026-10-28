@@ -1,29 +1,17 @@
 name: Release
 
-# A tag vX.Y.Z on a commit of main builds every platform, smokes what it built, publishes by
-# digest, signs and attests, then leaves a draft release that a maintainer checks and publishes;
-# this workflow never publishes it. CI runs on main before the tag, never in the release's own run,
-# and no job here restores a cache. Run by hand (workflow_dispatch in the caller), it rehearses: the
-# builds and their smoke tests, nothing published. With verify-only it checks an existing draft
-# again, with the scripts of the commit the run was started from.
+# Tag vX.Y.Z on main: build, smoke, publish by digest, sign, attest, leave a draft release.
+# A maintainer publishes the draft. Manual run: rehearse without publishing; verify-only re-checks
+# a draft. No CI and no cache here: main's required checks already passed.
 #
-# Each stage is `scripts/release.sh <stage> ...` in the caller's repository, in its Nix dev shell:
-#   check   <version>                                     the version is the manifests' and has a
-#                                                         CHANGELOG section
-#   build   <version> <os> <arch> <dist>                  build and smoke one platform into <dist>
-#   publish <version> <artifacts> <published>             push by digest and sign; write
-#                                                         <published>/subjects.json:
-#                                                         [{"name": ..., "digest": "sha256:..."}]
-#   finish  <version> <os> <arch> <artifacts> <dist>      (finish: true) per finish platform, what
-#                                                         needs the published digests, such as an
-#                                                         installer
-#   assets  <version> <artifacts> <release>               <release>/assets/* with SHA256SUMS, and
-#                                                         <release>/notes.md
-#   verify  <version> <os> <arch> <downloaded>            check the draft's assets and signatures
-# <artifacts> holds one directory per earlier artifact: candidate-<os>-<arch>, published and
-# finish-<os>-<arch>. The signatures' identity is this workflow, not the caller's: verify gets it
-# in RELEASE_CERT_IDENTITY_REGEXP, RELEASE_SIGNER_WORKFLOW, RELEASE_SOURCE_REPOSITORY and
-# RELEASE_SOURCE_REF. build may leave logs in $CI_ARTIFACTS; they are uploaded when it fails.
+# Stages, each `scripts/release.sh <stage>` in the caller's dev shell:
+#   check   <version>                                 version matches manifests and CHANGELOG
+#   build   <version> <os> <arch> <dist>              build and smoke one platform
+#   publish <version> <artifacts> <published>         push by digest, sign, write subjects.json
+#   finish  <version> <os> <arch> <artifacts> <dist>  what needs the digests, such as installers
+#   assets  <version> <artifacts> <release>           assets/, SHA256SUMS, notes.md
+#   verify  <version> <os> <arch> <downloaded>        check the draft's assets and signatures
+# verify gets the signer from the RELEASE_* env vars; build may leave logs in $CI_ARTIFACTS.
 on:
   workflow_call:
     inputs:
