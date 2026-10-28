@@ -27,7 +27,7 @@
           src = ./release;
           subPackages = [ "cmd/zeabur-oss-release" ];
           # Change it when go.sum changes: nix build prints the new value.
-          vendorHash = "sha256-DLnStkxCwp8yPpkYMINy3ZsDL0l6Wy7AumoBrqRjae0=";
+          vendorHash = "sha256-L4BvEvP6KpazWXeawM6pCabuyW2Bm0G6t7l62Tcafz0=";
           env.CGO_ENABLED = 0;
           ldflags = [ "-s" "-w" ];
           nativeBuildInputs = [ pkgs.makeWrapper ];

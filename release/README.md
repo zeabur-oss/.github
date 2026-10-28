@@ -5,7 +5,8 @@ by digest, sign, write and sign `SHA256SUMS`, verify a release as a user would, 
 `CHANGELOG.md` section into release notes. A repository's `scripts/release.sh` keeps what is its
 own (what to build, how to smoke it, which assets exist) and calls this command for the rest.
 
-`zeabur-oss-release --help` lists the commands and their arguments.
+`zeabur-oss-release --help` lists the commands, and `zeabur-oss-release <command> --help` each one's
+arguments and an example. The command line is [cobra](https://github.com/spf13/cobra).
 
 ## Getting it
 

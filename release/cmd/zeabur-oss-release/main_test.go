@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -19,6 +20,17 @@ import (
 	"zeabur-oss-release/internal/digests"
 	"zeabur-oss-release/internal/sigstore"
 )
+
+// run runs the command line with the tools, and returns its output.
+func run(tools sigstore.Tools, args ...string) (string, error) {
+	var out strings.Builder
+	root := newRootCmd(tools)
+	root.SetArgs(args)
+	root.SetOut(&out)
+	root.SetErr(io.Discard)
+	err := root.ExecuteContext(context.Background())
+	return out.String(), err
+}
 
 // recorder stands in for cosign, gh and helm, and records what was run.
 type recorder struct{ calls []string }
@@ -62,11 +74,11 @@ func TestPushImageRecordsAndSigns(t *testing.T) {
 	}
 
 	var r recorder
-	err := pushImageCommand(context.Background(), []string{
-		"--repository", host + "/zeabur-oss/builder", "--tag", "0.1.1", "--label", "builder",
+	_, err := run(r.tools(), "push-image",
+		"--repository", host+"/zeabur-oss/builder", "--tag", "0.1.1", "--label", "builder",
 		"--digests", digestsFile, "--subjects", subjectsFile, "--insecure",
-		"linux/amd64=" + imageTar(t, "amd64"), "linux/arm64=" + imageTar(t, "arm64"),
-	}, r.tools())
+		"linux/amd64="+imageTar(t, "amd64"), "linux/arm64="+imageTar(t, "arm64"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +128,8 @@ func TestPushImageUsage(t *testing.T) {
 		{"--repository", "ghcr.io/x/y", "--tag", "0.1.1", "a.tar"},
 		{"--repository", "ghcr.io/x/y", "--tag", "0.1.1", "amd64=a.tar"},
 	} {
-		err := pushImageCommand(context.Background(), args, r.tools())
-		if _, ok := err.(usageError); !ok {
-			t.Errorf("%v: %v, want a usage error", args, err)
+		if _, err := run(r.tools(), append([]string{"push-image"}, args...)...); err == nil {
+			t.Errorf("%v: no error", args)
 		}
 	}
 	if len(r.calls) != 0 {
@@ -133,16 +144,17 @@ func TestVerifyImageRefusesMismatch(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "digests.txt")
 	var r recorder
-	if err := pushImageCommand(context.Background(), []string{
-		"--repository", host + "/o/zeabur", "--tag", "0.1.1", "--digests", file, "--insecure", "--no-sign",
-		"linux/amd64=" + imageTar(t, "amd64"), "linux/arm64=" + imageTar(t, "arm64"),
-	}, r.tools()); err != nil {
+	if _, err := run(r.tools(), "push-image",
+		"--repository", host+"/o/zeabur", "--tag", "0.1.1", "--digests", file, "--insecure", "--no-sign",
+		"linux/amd64="+imageTar(t, "amd64"), "linux/arm64="+imageTar(t, "arm64"),
+	); err != nil {
 		t.Fatal(err)
 	}
 	verify := func(platforms ...string) error {
-		return verifyImageCommand(context.Background(), append([]string{
+		_, err := run(r.tools(), append([]string{"verify-image",
 			"--repository", "o/zeabur", "--version", "v0.1.1", "--digests", file, "--insecure",
-		}, platforms...), r.tools())
+		}, platforms...)...)
+		return err
 	}
 	if err := verify("linux/amd64", "linux/arm64"); err != nil {
 		t.Fatal(err)
@@ -170,14 +182,14 @@ func TestNotesCommand(t *testing.T) {
 	if err := os.WriteFile(file, []byte("## [0.1.1]\n\nOne\nparagraph.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var b strings.Builder
-	if err := notesCommand([]string{file, "v0.1.1"}, &b); err != nil {
+	got, err := run(sigstore.Tools{}, "notes", file, "v0.1.1")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if b.String() != "One paragraph.\n" {
-		t.Errorf("notes %q", b.String())
+	if got != "One paragraph.\n" {
+		t.Errorf("notes %q", got)
 	}
-	if err := notesCommand([]string{file, "v0.2.0"}, &b); err == nil {
+	if _, err := run(sigstore.Tools{}, "notes", file, "v0.2.0"); err == nil {
 		t.Error("no error for a missing section")
 	}
 }
