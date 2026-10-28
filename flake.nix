@@ -36,6 +36,13 @@
               --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.cosign pkgs.gh pkgs.kubernetes-helm ]}
           '';
         };
+        # Run from a Rust repository's scripts/ci.sh. Cargo is the caller's: the report reads the
+        # graph with the repository's pinned toolchain.
+        zeabur-oss-unsafe-report = pkgs.writeShellApplication {
+          name = "zeabur-oss-unsafe-report";
+          runtimeInputs = with pkgs; [ git jq gawk gnugrep gnused coreutils ];
+          text = builtins.readFile ./checks/unsafe-report.sh;
+        };
         default = zeabur-oss-release;
       });
 

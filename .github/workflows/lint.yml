@@ -23,6 +23,8 @@ jobs:
       - run: nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint
       - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github
       - run: jq -e . default.json >/dev/null
+      - name: The unsafe report builds (shellcheck runs in the build)
+        run: nix build .#zeabur-oss-unsafe-report
 
   release-cli:
     runs-on: ubuntu-26.04-arm

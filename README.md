@@ -44,6 +44,14 @@ signs `SHA256SUMS`, verifies a release and makes the release notes from `CHANGEL
 repository gets it from this flake, pinned in its own `flake.lock`, and calls it from its
 `scripts/release.sh` stages.
 
+### Unsafe report
+
+`zeabur-oss-unsafe-report <package>...`, from the same flake and pin, lists the shipped
+dependencies of those packages that have `unsafe` code or link native code. It writes
+`target/unsafe-report.md` and fails on any that the repository's
+`supply-chain/unsafe-allowlist.toml` does not approve. A Rust repository runs it from its
+`scripts/ci.sh`; Cargo comes from the caller's dev shell.
+
 ### Signatures
 
 Keyless signatures and attestations name the workflow that ran, which is this repository's
