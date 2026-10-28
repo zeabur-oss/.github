@@ -189,6 +189,17 @@ func TestNotesCommand(t *testing.T) {
 	if got != "One paragraph.\n" {
 		t.Errorf("notes %q", got)
 	}
+	got, err = run(sigstore.Tools{}, "notes", file, "v0.1.1", "--docs", "https://oss.zeabur.com/docs/zeabur/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "One paragraph.\n\nInstall, upgrade and verify: [oss.zeabur.com/docs/zeabur](https://oss.zeabur.com/docs/zeabur/)\n"
+	if got != want {
+		t.Errorf("notes --docs %q, want %q", got, want)
+	}
+	if _, err := run(sigstore.Tools{}, "notes", file, "v0.1.1", "--docs", "oss.zeabur.com/docs"); err == nil {
+		t.Error("no error for a URL without https")
+	}
 	if _, err := run(sigstore.Tools{}, "notes", file, "v0.2.0"); err == nil {
 		t.Error("no error for a missing section")
 	}

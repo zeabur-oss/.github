@@ -34,7 +34,7 @@ zeabur-oss-release push-chart --repository ghcr.io/zeabur-oss/charts \
 
 # assets: the checksums of every asset, signed; the notes
 zeabur-oss-release checksums release/assets
-zeabur-oss-release notes CHANGELOG.md v0.1.1 >release/notes.md
+zeabur-oss-release notes CHANGELOG.md v0.1.1 --docs https://oss.zeabur.com/docs/zeabur/ >release/notes.md
 
 # verify: what a user checks, with no registry login
 zeabur-oss-release verify-assets --repository zeabur-oss/zeabur --version v0.1.1 downloaded \
@@ -61,6 +61,11 @@ zeabur-oss-release verify-chart --repository zeabur-oss/zeabur --version v0.1.1 
 - **Release notes read as written.** A release body shows every line break, so `notes` joins the
   wrapped lines of paragraphs and list items and leaves code blocks, tables, quotes, headings and
   hard breaks as they are.
+- **The notes say what changed; the docs say how to use it.** A release body is the changelog
+  section and one link to the product's documentation, which covers installing, upgrading and
+  verifying. Install commands, verify commands and digests are not repeated in the body: the
+  digests are the signed `digests.txt` asset, and the docs are kept current where a release body
+  is not.
 - **Untagged versions are part of a release.** The platform images an index lists, and the
   signatures cosign stores beside them, are untagged in GHCR. Never delete untagged versions
   of a release package.
