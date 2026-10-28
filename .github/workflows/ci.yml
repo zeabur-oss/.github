@@ -1,0 +1,79 @@
+name: CI
+
+# Every job a repository lists with `scripts/ci.sh --list`, each as `scripts/ci.sh <job>`. The
+# script enters the repository's Nix dev shell itself, so a job runs the same here and on any
+# Linux machine with Nix; this workflow only checks out, installs Nix and restores caches.
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: The runner of every job.
+        type: string
+        default: ubuntu-26.04-arm
+      fetch-depth:
+        description: Commits to fetch; 0 fetches all of them.
+        type: number
+        default: 1
+      rust-cache:
+        description: Restore and save target/ and the Cargo registry, one cache per job.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  list:
+    runs-on: ubuntu-slim
+    outputs:
+      jobs: ${{ steps.list.outputs.jobs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+      # --list must not need the dev shell. Job names are plain words, so no JSON quoting is needed.
+      - id: list
+        run: |
+          jobs=$(./scripts/ci.sh --list | awk 'NF { printf "%s\"%s\"", (n++ ? "," : ""), $1 }')
+          [[ -n "$jobs" ]] || { echo "::error::scripts/ci.sh --list printed no jobs"; exit 1; }
+          echo "jobs=[$jobs]" >> "$GITHUB_OUTPUT"
+
+  job:
+    name: ${{ matrix.job }}
+    needs: list
+    runs-on: ${{ inputs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(needs.list.outputs.jobs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: ${{ inputs.fetch-depth }}
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      # rust-cache keys on `rustc -vV`: put the pinned toolchain from the dev shell on PATH first,
+      # otherwise it fails ("Command failed: rustc -vV") or keys on the image's rustc.
+      - if: inputs.rust-cache
+        run: dirname "$(nix develop --command bash -c 'command -v rustc')" >> "$GITHUB_PATH"
+      - if: inputs.rust-cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.job }}
+      - env:
+          JOB: ${{ matrix.job }}
+          # A job keeps what it wants uploaded here, such as a report or the logs of a failure.
+          CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
+        run: ./scripts/ci.sh "$JOB"
+      # act's artifact server (0.2.89) rejects upload-artifact v7 requests ("unknown field mime_type").
+      - if: always() && !env.ACT
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-${{ matrix.job }}
+          path: ${{ runner.temp }}/ci-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
