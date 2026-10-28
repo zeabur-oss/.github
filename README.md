@@ -37,6 +37,13 @@ fails.
 `<artifacts>` holds one directory per earlier artifact: `candidate-<os>-<arch>`, `published` and
 `finish-<os>-<arch>`.
 
+### Shared steps
+
+[`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
+signs `SHA256SUMS`, verifies a release and makes the release notes from `CHANGELOG.md`. A
+repository gets it from this flake, pinned in its own `flake.lock`, and calls it from its
+`scripts/release.sh` stages.
+
 ### Signatures
 
 Keyless signatures and attestations name the workflow that ran, which is this repository's

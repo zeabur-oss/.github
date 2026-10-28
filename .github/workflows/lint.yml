@@ -23,5 +23,54 @@ jobs:
       - run: nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint
       - run: jq -e . default.json >/dev/null
 
+  release-cli:
+    runs-on: ubuntu-26.04-arm
+    services:
+      # A registry without the Referrers API, as GHCR answers, for what docker saves.
+      registry:
+        image: registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373 # 2.8.3
+        ports: ['5000:5000']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - name: Unit tests
+        working-directory: release
+        run: |
+          unformatted=$(nix develop --command gofmt -l .)
+          [[ -z "$unformatted" ]] || { echo "::error::not gofmt'd: $unformatted"; exit 1; }
+          nix develop --command go vet ./...
+          nix develop --command go test -race ./...
+      - name: The package builds (vendorHash matches go.sum)
+        run: nix build .#zeabur-oss-release
+      - name: Push what docker saves, then read it back
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            printf 'FROM scratch\nCOPY flake.nix /\n' |
+              docker build --platform "linux/$arch" --tag "smoke:$arch" --file - .
+            docker image save --output "$RUNNER_TEMP/$arch.tar" "smoke:$arch"
+          done
+          ./result/bin/zeabur-oss-release push-image --insecure --no-sign \
+            --repository localhost:5000/zeabur-oss/smoke --tag 0.0.1 \
+            --digests "$RUNNER_TEMP/digests.txt" --subjects "$RUNNER_TEMP/subjects.json" \
+            "linux/amd64=$RUNNER_TEMP/amd64.tar" "linux/arm64=$RUNNER_TEMP/arm64.tar"
+          cat "$RUNNER_TEMP/digests.txt" "$RUNNER_TEMP/subjects.json"
+          index=$(awk '$1 == "index" { print $2 }' "$RUNNER_TEMP/digests.txt")
+          # The index lists the two images docker saved, by the digests recorded.
+          curl -fsS -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            "http://localhost:5000/v2/zeabur-oss/smoke/manifests/${index#*@}" |
+            jq -r '.manifests[] | "\(.platform.os)/\(.platform.architecture) \(.digest)"' | sort >"$RUNNER_TEMP/listed"
+          awk '$1 != "index" { sub(/.*@/, "", $2); print $1, $2 }' "$RUNNER_TEMP/digests.txt" | sort |
+            diff - "$RUNNER_TEMP/listed"
+          # The tag is the index; no other tag was made.
+          [[ "$(curl -fsS http://localhost:5000/v2/zeabur-oss/smoke/tags/list | jq -c .tags)" == '["0.0.1"]' ]]
+          # A published version is never replaced.
+          if ./result/bin/zeabur-oss-release push-image --insecure --no-sign \
+            --repository localhost:5000/zeabur-oss/smoke --tag 0.0.1 "linux/amd64=$RUNNER_TEMP/amd64.tar"; then
+            echo "::error::pushed over 0.0.1"; exit 1
+          fi
+
   dco:
     uses: ./.github/workflows/dco.yml
