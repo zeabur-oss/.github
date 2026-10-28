@@ -104,3 +104,16 @@ jobs:
           path: ${{ runner.temp }}/ci-artifacts/
           if-no-files-found: ignore
           retention-days: 14
+
+  # The one check a ruleset requires, so a repository's list of jobs can change without editing it.
+  ok:
+    if: always()
+    needs: [list, zizmor, job]
+    runs-on: ubuntu-slim
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            [[ "$result" == success ]] || { echo "::error::a job ended with $result"; exit 1; }
+          done

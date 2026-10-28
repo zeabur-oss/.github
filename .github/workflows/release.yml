@@ -1,11 +1,11 @@
 name: Release
 
-# A tag vX.Y.Z on a commit of main whose CI passed there (ci-workflows) builds every platform,
-# smokes what it built, publishes by digest, signs and attests, then leaves a draft release that a
-# maintainer checks and publishes; this workflow never publishes it. CI never runs in the release's
-# own run: a test's dependencies cannot reach the candidates, and no job here restores a cache. Run by hand (workflow_dispatch in the caller), it rehearses: the builds and their
-# smoke tests, nothing published. With verify-only it checks an existing draft again, with the
-# scripts of the commit the run was started from.
+# A tag vX.Y.Z on a commit of main builds every platform, smokes what it built, publishes by
+# digest, signs and attests, then leaves a draft release that a maintainer checks and publishes;
+# this workflow never publishes it. CI runs on main before the tag, never in the release's own run,
+# and no job here restores a cache. Run by hand (workflow_dispatch in the caller), it rehearses: the
+# builds and their smoke tests, nothing published. With verify-only it checks an existing draft
+# again, with the scripts of the commit the run was started from.
 #
 # Each stage is `scripts/release.sh <stage> ...` in the caller's repository, in its Nix dev shell:
 #   check   <version>                                     the version is the manifests' and has a
@@ -57,12 +57,6 @@ on:
         description: JSON array of {os, arch, runner} to finish on; empty for the platforms.
         type: string
         default: ''
-      ci-workflows:
-        description: >-
-          Workflow files, space-separated, whose latest run on main for the tagged commit must have
-          succeeded. The caller grants actions: read for it.
-        type: string
-        default: ci.yml
       runner:
         description: The runner of the jobs that are not per platform.
         type: string
@@ -77,9 +71,6 @@ env:
 jobs:
   prepare:
     runs-on: ${{ inputs.runner }}
-    permissions:
-      contents: read
-      actions: read # the CI runs on main
     outputs:
       version: ${{ steps.version.outputs.version }}
       verify-platforms: ${{ steps.version.outputs.verify-platforms }}
@@ -110,35 +101,6 @@ jobs:
             echo "verify-platforms=$(jq -c . <<<"$PLATFORMS")"
             echo "finish-platforms=$(jq -c . <<<"$FINISH_PLATFORMS")"
           } >> "$GITHUB_OUTPUT"
-      - name: CI passed on main for this commit
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CI_WORKFLOWS: ${{ inputs.ci-workflows }}
-        run: |
-          sha=$(git rev-parse HEAD)
-          status=0
-          for workflow in $CI_WORKFLOWS; do
-            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&head_sha=$sha&per_page=100" |
-              jq -c --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[]
-                | select(.head_repository.full_name == $repo)
-                | select(.event == "push" or .event == "schedule" or .event == "workflow_dispatch")]
-                | max_by(.created_at) // empty')
-            if [[ -z "$run" ]]; then
-              echo "::error::$workflow has no run on main for $sha; run it there first"
-              status=1
-              continue
-            fi
-            state=$(jq -r 'if .status != "completed" then "still \(.status)" else .conclusion end' <<<"$run")
-            url=$(jq -r .html_url <<<"$run")
-            if [[ "$state" == success ]]; then
-              echo "$workflow passed on main: $url"
-            else
-              echo "::error::$workflow on main for $sha: $state ($url)"
-              status=1
-            fi
-          done
-          exit $status
 
   build:
     name: build (${{ matrix.os }}-${{ matrix.arch }})
