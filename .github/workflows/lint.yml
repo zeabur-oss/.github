@@ -21,6 +21,7 @@ jobs:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
       - run: nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint
+      - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github
       - run: jq -e . default.json >/dev/null
 
   release-cli:

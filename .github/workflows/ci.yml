@@ -1,8 +1,6 @@
 name: CI
 
-# Every job a repository lists with `scripts/ci.sh --list`, each as `scripts/ci.sh <job>`. The
-# script enters the repository's Nix dev shell itself, so a job runs the same here and on any
-# Linux machine with Nix; this workflow only checks out, installs Nix and restores caches.
+# Runs each job of `scripts/ci.sh --list` as `scripts/ci.sh <job>`, plus zizmor.
 on:
   workflow_call:
     inputs:
@@ -45,12 +43,22 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: scripts
-      # --list must not need the dev shell. Job names are plain words, so no JSON quoting is needed.
+      # --list runs without the dev shell.
       - id: list
         run: |
           jobs=$(./scripts/ci.sh --list | awk 'NF { printf "%s\"%s\"", (n++ ? "," : ""), $1 }')
           [[ -n "$jobs" ]] || { echo "::error::scripts/ci.sh --list printed no jobs"; exit 1; }
           echo "jobs=[$jobs]" >> "$GITHUB_OUTPUT"
+
+  zizmor:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github
 
   job:
     name: ${{ matrix.job }}
@@ -66,8 +74,7 @@ jobs:
           persist-credentials: false
           fetch-depth: ${{ inputs.fetch-depth }}
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
-      # rust-cache keys on `rustc -vV`: put the pinned toolchain from the dev shell on PATH first,
-      # otherwise it fails ("Command failed: rustc -vV") or keys on the image's rustc.
+      # rust-cache keys on `rustc -vV`, so use the dev shell's toolchain.
       - if: inputs.rust-cache
         run: dirname "$(nix develop --command bash -c 'command -v rustc')" >> "$GITHUB_PATH"
       - if: inputs.rust-cache
@@ -82,10 +89,10 @@ jobs:
           restore-keys: ci-${{ matrix.job }}-${{ runner.os }}-${{ runner.arch }}-
       - env:
           JOB: ${{ matrix.job }}
-          # A job keeps what it wants uploaded here, such as a report or the logs of a failure.
+          # Uploaded after the job, pass or fail.
           CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
         run: ./scripts/ci.sh "$JOB"
-      # act's artifact server (0.2.89) rejects upload-artifact v7 requests ("unknown field mime_type").
+      # act rejects upload-artifact v7.
       - if: always() && !env.ACT
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -93,3 +100,16 @@ jobs:
           path: ${{ runner.temp }}/ci-artifacts/
           if-no-files-found: ignore
           retention-days: 14
+
+  # The check rulesets require.
+  ok:
+    if: always()
+    needs: [list, zizmor, job]
+    runs-on: ubuntu-slim
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            [[ "$result" == success ]] || { echo "::error::a job ended with $result"; exit 1; }
+          done
