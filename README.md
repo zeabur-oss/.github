@@ -12,6 +12,9 @@ install Nix, cache and upload.
 - `scripts/ci.sh <job>` runs one job. It enters the repository's Nix dev shell itself, so a job
   runs the same on GitHub and on any Linux machine with Nix (and Docker, for cluster jobs).
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
+- Inputs of the shared `ci.yml`: `runner`, `fetch-depth`, `rust-cache`, and `cache-paths` with
+  `cache-key-files` for anything else worth keeping between runs (Go modules, a tool built from
+  source), one cache per job keyed on those files.
 
 ### `scripts/release.sh`
 
@@ -25,6 +28,11 @@ One entrypoint per stage, called in the dev shell of the commit being released:
 | `finish` | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer. |
 | `assets` | `<version> <artifacts> <release>` | Writes `<release>/assets/*` with `SHA256SUMS`, and `<release>/notes.md`. |
 | `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft release's assets and their signatures. |
+
+Inputs of the shared `release.yml`: `name`, `version`, `verify-only`, `platforms` (JSON array of
+`{os, arch, runner}`), `finish` with `finish-platforms`, `verify-platforms` (both default to
+`platforms`) and `runner`. `build` may leave logs in `$CI_ARTIFACTS`; they are uploaded when it
+fails.
 
 `<artifacts>` holds one directory per earlier artifact: `candidate-<os>-<arch>`, `published` and
 `finish-<os>-<arch>`.
