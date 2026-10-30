@@ -57,6 +57,12 @@ on:
           and are signed and notarized. Empty for none.
         type: string
         default: ''
+      telemetry-key:
+        description: >-
+          A project key that tag builds compile in as ZEABUR_TELEMETRY_KEY, for programs that
+          report usage; other builds get none. Empty for none.
+        type: string
+        default: ''
     secrets:
       APPLE_CERTIFICATE_P12:
         description: The Developer ID Application certificate with its key, .p12 in base64.
@@ -140,6 +146,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
       - name: Build and smoke
         env:
+          ZEABUR_TELEMETRY_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && inputs.telemetry-key || '' }}
           VERSION: ${{ needs.prepare.outputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
@@ -244,6 +251,7 @@ jobs:
         with:
           path: artifacts
       - env:
+          ZEABUR_TELEMETRY_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && inputs.telemetry-key || '' }}
           VERSION: ${{ needs.prepare.outputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
