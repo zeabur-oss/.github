@@ -117,7 +117,7 @@ jobs:
 name: Release
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    tags: ['v[0-9]*'] # the shared workflow checks the rest (SemVer)
   workflow_dispatch:
     inputs:
       version:
@@ -177,6 +177,12 @@ jobs:
 2. Optionally rehearse: run the repository's Release workflow by hand with the version.
 3. Push the tag `vX.Y.Z` from `main`. The workflow leaves a draft release.
 4. Check the draft and publish it. Releases are immutable once published.
+
+A tag is a [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html) version with a `v` and no build
+metadata. `vX.Y.Z`, `v0.*` included, is a normal release. A tag with a pre-release part
+(`v0.1.2-beta.1`, `v1.0.0-rc.1`) is a GitHub pre-release, never marked latest. A pre-release
+shares the `CHANGELOG.md` section of its normal version (`## [0.1.2]`), is tagged on `main` like
+any other release, and its manifests carry the full version (`0.1.2-beta.1`).
 
 ## Contributing
 

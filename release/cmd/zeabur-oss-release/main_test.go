@@ -204,3 +204,23 @@ func TestNotesCommand(t *testing.T) {
 		t.Error("no error for a missing section")
 	}
 }
+
+func TestVersionCommand(t *testing.T) {
+	got, err := run(sigstore.Tools{}, "version", "v0.1.2-beta.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "plain=0.1.2-beta.1\nnormal=0.1.2\nprerelease=true\n"; got != want {
+		t.Errorf("version %q, want %q", got, want)
+	}
+	got, err = run(sigstore.Tools{}, "version", "v0.1.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "plain=0.1.2\nnormal=0.1.2\nprerelease=false\n"; got != want {
+		t.Errorf("version %q, want %q", got, want)
+	}
+	if _, err := run(sigstore.Tools{}, "version", "0.1.2"); err == nil {
+		t.Error("no error for a version without v")
+	}
+}
