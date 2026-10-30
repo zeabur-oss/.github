@@ -1,6 +1,6 @@
 # zeabur-oss/.github
 
-The CI, DCO and release workflows every zeabur-oss repository calls, and the shared Renovate
+The CI, DCO, release and skills workflows every zeabur-oss repository calls, and the shared Renovate
 preset. A repository keeps what is its own in two scripts; the workflows here only check out,
 install Nix, cache and upload.
 
@@ -51,6 +51,15 @@ dependencies of those packages that have `unsafe` code or link native code. It w
 `target/unsafe-report.md` and fails on any that the repository's
 `supply-chain/unsafe-allowlist.toml` does not approve. A Rust repository runs it from its
 `scripts/ci.sh`; Cargo comes from the caller's dev shell.
+
+### Skills
+
+`skills.yml` installs again the skills of `skills-lock.json` that the repository keeps in
+`.claude/skills`, from their GitHub sources, and opens one pull request (`update/skills`) as
+zeabur-oss-bot. An entry with a `ref` moves to its source's default branch; entries whose files
+the repository does not keep stay as they are. Renovate does not read `skills-lock.json`, so this
+runs on its own schedule. The repository needs zeabur-oss-bot installed and
+`ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
 
 ### Signatures
 
@@ -135,6 +144,23 @@ jobs:
       name: Zeabur Example
       version: ${{ inputs.version }}
       verify-only: ${{ inputs.verify_only == true }}
+```
+
+`.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate:
+
+```yaml
+name: Skills
+on:
+  schedule:
+    - cron: '0 17 * * 0'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  skills:
+    uses: zeabur-oss/.github/.github/workflows/skills.yml@<sha> # main
+    secrets:
+      private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
 `renovate.json`: `{"extends": ["github>zeabur-oss/.github"], ...}` plus the repository's

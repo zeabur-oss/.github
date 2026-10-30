@@ -1,0 +1,118 @@
+name: Skills
+
+# Installs again, from their sources, the skills of skills-lock.json that the repository keeps in
+# .claude/skills, and opens one pull request with what changed. An entry pinned to a commit (`ref`)
+# moves to its source's default branch. Entries whose files are not in the repository stay as
+# they are.
+#
+# `update` runs the skills CLI and what it fetches, with no secrets and a read-only token.
+# `pull-request` holds zeabur-oss-bot's key and runs nothing it fetched: it applies the diff and
+# opens the pull request as the bot, because one opened with GITHUB_TOKEN would not start CI.
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: The runner of the update job.
+        type: string
+        default: ubuntu-26.04-arm
+    secrets:
+      private-key:
+        description: The private key of zeabur-oss-bot (ZEABUR_OSS_BOT_PRIVATE_KEY).
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  SKILLS_CLI: skills@1.7.4
+
+jobs:
+  update:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - name: Install the skills again
+        env:
+          DISABLE_TELEMETRY: '1'
+        run: |
+          declare -A names pinned
+          while IFS=$'\t' read -r name source ref; do
+            git ls-files --error-unmatch ".claude/skills/$name/SKILL.md" >/dev/null 2>&1 || continue
+            names[$source]+=" $name"
+            [[ -z "$ref" ]] || pinned[$source]=1
+          done < <(jq -r '.skills | to_entries[] | select(.value.sourceType == "github")
+            | [.key, .value.source, .value.ref // ""] | @tsv' skills-lock.json)
+
+          for source in "${!names[@]}"; do
+            spec=$source
+            if [[ -n "${pinned[$source]:-}" ]]; then
+              head=$(git ls-remote "https://github.com/$source.git" HEAD | cut -f1)
+              [[ -n "$head" ]] || { echo "::error::no HEAD for $source"; exit 1; }
+              spec="$source#$head"
+            fi
+            read -ra skills <<<"${names[$source]}"
+            nix shell nixpkgs#nodejs --command npx --yes "$SKILLS_CLI" add "$spec" \
+              --skill "${skills[@]}" --agent claude-code --copy --yes
+          done
+
+          git add --all .claude/skills skills-lock.json
+          git diff --cached --binary > "$RUNNER_TEMP/skills.patch"
+          git diff --cached --stat
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skills-patch
+          path: ${{ runner.temp }}/skills.patch
+          if-no-files-found: error
+          retention-days: 7
+
+  pull-request:
+    needs: update
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: skills-patch
+          path: ${{ runner.temp }}
+      - run: |
+          [[ ! -s "$RUNNER_TEMP/skills.patch" ]] || git apply --index "$RUNNER_TEMP/skills.patch"
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.private-key }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      # The commit's author must match its sign-off (the DCO check).
+      - id: bot
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          echo "identity=${APP_SLUG}[bot] <${id}+${APP_SLUG}[bot]@users.noreply.github.com>" >> "$GITHUB_OUTPUT"
+      # Also runs when nothing changed, so it closes an update/skills that main no longer needs.
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app.outputs.token }}
+          author: ${{ steps.bot.outputs.identity }}
+          committer: ${{ steps.bot.outputs.identity }}
+          signoff: true
+          sign-commits: true
+          add-paths: |
+            .claude/skills
+            skills-lock.json
+          branch: update/skills
+          delete-branch: true
+          commit-message: "chore(skills): update the shared skills"
+          title: "chore(skills): update the shared skills"
+          body: |
+            `.github/workflows/skills.yml` installed the skills of `skills-lock.json` again from
+            their sources. A skill whose upstream changed on purpose is fine; one that broke goes
+            back to its source repository.

@@ -1,5 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>zeabur-oss/.github"],
-  "enabledManagers": ["github-actions"]
+  "enabledManagers": ["github-actions", "custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The skills CLI that skills.yml runs.",
+      "managerFilePatterns": ["/^\\.github/workflows/skills\\.yml$/"],
+      "matchStrings": ["SKILLS_CLI: (?<depName>skills)@(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "npm"
+    }
+  ]
 }
