@@ -7,6 +7,8 @@ name: Release
 # Stages, each `scripts/release.sh <stage>` in the caller's dev shell:
 #   check   <version>                                 version matches manifests and CHANGELOG
 #   build   <version> <os> <arch> <dist>              build and smoke one platform
+#   sign    <version> <os> <arch> <dist>              with signing-environment, on macOS:
+#                                                     Developer ID and notarization
 #   publish <version> <artifacts> <published>         push by digest, sign, write subjects.json
 #   finish  <version> <os> <arch> <artifacts> <dist>  what needs the digests, such as installers
 #   assets  <version> <artifacts> <release>           assets/, SHA256SUMS, notes.md
@@ -49,6 +51,28 @@ on:
         description: The runner of the jobs that are not per platform.
         type: string
         default: ubuntu-26.04-arm
+      signing-environment:
+        description: >-
+          The environment holding the APPLE_* secrets; macOS builds of main and tags run in it
+          and are signed and notarized. Empty for none.
+        type: string
+        default: ''
+    secrets:
+      APPLE_CERTIFICATE_P12:
+        description: The Developer ID Application certificate with its key, .p12 in base64.
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        description: The .p12's password.
+        required: false
+      APPLE_API_KEY_P8:
+        description: An App Store Connect API key for notarytool, the .p8's text.
+        required: false
+      APPLE_API_KEY_ID:
+        description: That key's ID.
+        required: false
+      APPLE_API_ISSUER_ID:
+        description: That key's issuer ID.
+        required: false
 
 permissions:
   contents: read
@@ -99,6 +123,11 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.platforms) }}
     runs-on: ${{ matrix.runner }}
+    # The environment's branch rules keep the signing secrets to main and tags; a rehearsal on
+    # any other branch builds unsigned.
+    environment: >-
+      ${{ matrix.os == 'darwin' && (github.ref == 'refs/heads/main' ||
+          startsWith(github.ref, 'refs/tags/v')) && inputs.signing-environment || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -111,6 +140,20 @@ jobs:
           ARCH: ${{ matrix.arch }}
           CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
         run: ./scripts/release.sh build "$VERSION" "$OS" "$ARCH" dist
+      # A step of its own, so the build never sees the secrets. Without them sign leaves the
+      # build as it is.
+      - name: Sign and notarize
+        if: matrix.os == 'darwin' && inputs.signing-environment != ''
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: ./scripts/release.sh sign "$VERSION" "$OS" "$ARCH" dist
       - if: failure() && !env.ACT
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

@@ -24,6 +24,7 @@ One entrypoint per stage, called in the dev shell of the commit being released:
 |---|---|---|
 | `check` | `<version>` | The version is the manifests' and has a `CHANGELOG.md` section. |
 | `build` | `<version> <os> <arch> <dist>` | Builds one platform into `<dist>` and smokes what it built. |
+| `sign` | `<version> <os> <arch> <dist>` | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
 | `publish` | `<version> <artifacts> <published>` | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed). |
 | `finish` | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer. |
 | `assets` | `<version> <artifacts> <release>` | Writes `<release>/assets/*` with `SHA256SUMS`, and `<release>/notes.md`. |
@@ -31,8 +32,14 @@ One entrypoint per stage, called in the dev shell of the commit being released:
 
 Inputs of the shared `release.yml`: `name`, `version`, `verify-only`, `platforms` (JSON array of
 `{os, arch, runner}`), `finish` with `finish-platforms`, `verify-platforms` (both default to
-`platforms`) and `runner`. `build` may leave logs in `$CI_ARTIFACTS`; they are uploaded when it
-fails.
+`platforms`), `runner` and `signing-environment`. `build` may leave logs in `$CI_ARTIFACTS`; they
+are uploaded when it fails.
+
+`signing-environment` names an environment whose deployment branches are `main` and `v*` tags,
+holding `APPLE_CERTIFICATE_P12` (the Developer ID Application certificate and key, base64),
+`APPLE_CERTIFICATE_PASSWORD`, and an App Store Connect API key for notarization: `APPLE_API_KEY_P8`
+(the file's text), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID`. The caller passes the five by
+name. macOS builds of `main` and tags run in it; others build unsigned.
 
 `<artifacts>` holds one directory per earlier artifact: `candidate-<os>-<arch>`, `published` and
 `finish-<os>-<arch>`.
