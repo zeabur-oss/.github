@@ -1,6 +1,6 @@
 name: Skills
 
-# Copies the skills of skills-lock.json that come from zeabur-oss/skills again into .claude/skills
+# Copies each skill in .claude/skills that zeabur-oss/skills also has again from zeabur-oss/skills,
 # and opens one pull request with what changed. zeabur-oss-bot opens it, because a pull request
 # made with GITHUB_TOKEN does not start CI.
 on:
@@ -20,15 +20,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
-      # --json fails on a skill gone upstream even when the others are found.
-      - env:
-          DISABLE_TELEMETRY: '1'
+      - id: copy
         run: |
-          mapfile -t skills < <(jq -r '.skills | to_entries[]
-            | select(.value.source == "zeabur-oss/skills") | .key' skills-lock.json)
-          nix shell nixpkgs#nodejs --command npx --yes skills@1.7.4 add zeabur-oss/skills \
-            --skill "${skills[@]}" --agent claude-code --copy --yes --json
+          source="$RUNNER_TEMP/skills"
+          git clone --quiet --depth 1 https://github.com/zeabur-oss/skills.git "$source"
+          for dir in .claude/skills/*/; do
+            name=$(basename "$dir")
+            [[ -d "$source/skills/$name" ]] || continue
+            rm -rf "$dir"
+            cp -R "$source/skills/$name" "$dir"
+          done
+          echo "sha=$(git -C "$source" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - id: app
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -52,11 +54,9 @@ jobs:
           committer: ${{ steps.bot.outputs.identity }}
           signoff: true
           sign-commits: true
-          add-paths: |
-            .claude/skills
-            skills-lock.json
+          add-paths: .claude/skills
           branch: update/skills
           delete-branch: true
           commit-message: "chore(skills): update the shared skills"
           title: "chore(skills): update the shared skills"
-          body: Copied again from zeabur-oss/skills by `.github/workflows/skills.yml`.
+          body: Copied again from zeabur-oss/skills@${{ steps.copy.outputs.sha }}.

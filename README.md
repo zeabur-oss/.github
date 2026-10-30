@@ -54,9 +54,10 @@ dependencies of those packages that have `unsafe` code or link native code. It w
 
 ### Skills
 
-`skills.yml` copies the skills of `skills-lock.json` that come from `zeabur-oss/skills` again into
-`.claude/skills` and opens `update/skills` as zeabur-oss-bot. The repository needs the bot
-installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
+`skills.yml` copies each skill in `.claude/skills` that `zeabur-oss/skills` also has, by directory
+name, again from its `main`, and opens `update/skills` as zeabur-oss-bot. To use a shared skill,
+copy its directory from `zeabur-oss/skills/skills/` into `.claude/skills/`. The repository needs
+the bot installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
 
 ### Signatures
 
