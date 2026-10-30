@@ -25,6 +25,9 @@ same commands a user runs, and pushes charts with `helm push`.
 ## A release with it
 
 ```sh
+# check: the tag is SemVer; prints plain=, normal= (its CHANGELOG.md section) and prerelease=
+zeabur-oss-release version v0.1.2-beta.1
+
 # publish: each image by digest, then its index tagged X.Y.Z; every digest signed
 zeabur-oss-release push-image --repository ghcr.io/zeabur-oss/zeabur --tag 0.1.1 \
   --digests published/digests.txt --subjects published/subjects.json \

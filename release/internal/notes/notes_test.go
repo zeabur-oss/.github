@@ -83,7 +83,7 @@ and this one starts a new line.
 }
 
 func TestSectionVersions(t *testing.T) {
-	for _, v := range []string{"0.1.0", "v0.1.0"} {
+	for _, v := range []string{"0.1.0", "v0.1.0", "v0.1.0-beta.1", "0.1.0-rc.2"} {
 		got, err := Section(strings.NewReader(changelog), v)
 		if err != nil || got != "Never published.\n" {
 			t.Errorf("%s: got %q, %v", v, got, err)
@@ -92,7 +92,7 @@ func TestSectionVersions(t *testing.T) {
 }
 
 func TestSectionMissing(t *testing.T) {
-	for _, v := range []string{"v0.2.0", "v0.1", "0.1.1.1"} {
+	for _, v := range []string{"v0.2.0", "v0.1", "0.1.1.1", "v0.1.1+build"} {
 		_, err := Section(strings.NewReader(changelog), v)
 		if err == nil {
 			t.Errorf("%s: no error", v)

@@ -14,10 +14,11 @@ import (
 	"io"
 	"regexp"
 	"strings"
+
+	"zeabur-oss-release/internal/version"
 )
 
 var (
-	version   = regexp.MustCompile(`^v?(\d+\.\d+\.\d+)$`)
 	fence     = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
 	listItem  = regexp.MustCompile(`^ *([-*+]|\d{1,9}[.)])( +|$)`)
 	heading   = regexp.MustCompile(`^ {0,3}#{1,6}( |$)`)
@@ -34,13 +35,14 @@ func (e ErrNoSection) Error() string {
 
 // Section returns the text of the section headed `## [X.Y.Z]` (optionally followed by ` - <date>`
 // or other text after a space), without its heading, with soft line breaks joined. The version may
-// be given as vX.Y.Z or X.Y.Z.
+// be given with or without its v. A pre-release has no section of its own: v0.1.2-beta.1 reads
+// ## [0.1.2].
 func Section(changelog io.Reader, v string) (string, error) {
-	m := version.FindStringSubmatch(v)
-	if m == nil {
-		return "", fmt.Errorf("%q is not a version like v1.2.3", v)
+	parsed, err := version.Parse("v" + strings.TrimPrefix(v, "v"))
+	if err != nil {
+		return "", err
 	}
-	plain := m[1]
+	plain := parsed.Normal
 	want := "## [" + plain + "]"
 
 	var lines []string

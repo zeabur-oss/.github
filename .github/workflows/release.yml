@@ -1,6 +1,6 @@
 name: Release
 
-# Tag vX.Y.Z on main: build, smoke, publish by digest, sign, attest, leave a draft release.
+# Tag vX.Y.Z or vX.Y.Z-<pre-release> on main: build, smoke, publish by digest, sign, attest, leave a draft release.
 # A maintainer publishes the draft. Manual run: rehearse without publishing; verify-only re-checks
 # a draft. No CI and no cache here: main's required checks already passed.
 #
@@ -20,7 +20,7 @@ on:
         type: string
         required: true
       version:
-        description: The version to rehearse or verify (v0.1.1); empty for the pushed tag.
+        description: The version to rehearse or verify (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
         type: string
         default: ''
       verify-only:
@@ -61,6 +61,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
       verify-platforms: ${{ steps.version.outputs.verify-platforms }}
       finish-platforms: ${{ steps.version.outputs.finish-platforms }}
     steps:
@@ -78,7 +79,10 @@ jobs:
           PLATFORMS: ${{ inputs.verify-platforms || inputs.platforms }}
           FINISH_PLATFORMS: ${{ inputs.finish-platforms || inputs.platforms }}
         run: |
-          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$VERSION is not vX.Y.Z"; exit 1; }
+          # SemVer 2.0.0 with a v and no build metadata, as zeabur-oss-release version checks it.
+          n='(0|[1-9][0-9]*)' i='(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+          [[ "$VERSION" =~ ^v$n\.$n\.$n(-$i(\.$i)*)?$ ]] ||
+            { echo "::error::$VERSION is not vX.Y.Z or vX.Y.Z-<pre-release>"; exit 1; }
           ./scripts/release.sh check "$VERSION"
           if [[ "$GITHUB_EVENT_NAME" == push || "$VERIFY_ONLY" == true ]]; then
             git merge-base --is-ancestor HEAD origin/main ||
@@ -86,6 +90,7 @@ jobs:
           fi
           {
             echo "version=$VERSION"
+            echo "prerelease=$([[ "$VERSION" == *-* ]] && echo true || echo false)"
             echo "verify-platforms=$(jq -c . <<<"$PLATFORMS")"
             echo "finish-platforms=$(jq -c . <<<"$FINISH_PLATFORMS")"
           } >> "$GITHUB_OUTPUT"
@@ -240,10 +245,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
           NAME: ${{ inputs.name }}
         run: |
+          # GitHub never marks a pre-release latest.
           prerelease=()
-          [[ "$VERSION" != v0.* ]] || prerelease=(--prerelease)
+          [[ "$PRERELEASE" != true ]] || prerelease=(--prerelease)
           gh release create "$VERSION" release/assets/* --repo "$GITHUB_REPOSITORY" \
             --verify-tag --target "$GITHUB_SHA" --draft "${prerelease[@]}" \
             --title "$NAME $VERSION" --notes-file release/notes.md

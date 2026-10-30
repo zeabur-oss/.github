@@ -32,7 +32,7 @@ scripts/release.sh keeps what is its own and calls these commands for the rest.`
 	root.AddGroup(
 		&cobra.Group{ID: "publish", Title: "Publishing (in the release workflow, with its registry login and identity token):"},
 		&cobra.Group{ID: "verify", Title: "Verifying (anyone, no registry login; gh must be signed in to read attestations):"},
-		&cobra.Group{ID: "notes", Title: "Release notes:"},
+		&cobra.Group{ID: "notes", Title: "Versions and release notes:"},
 	)
 	// Run from scripts and workflows, not typed: no completion command.
 	root.CompletionOptions.DisableDefaultCmd = true
@@ -44,6 +44,7 @@ scripts/release.sh keeps what is its own and calls these commands for the rest.`
 		newVerifyImageCmd(tools),
 		newVerifyChartCmd(tools),
 		newNotesCmd(),
+		newVersionCmd(),
 	)
 	return root
 }
