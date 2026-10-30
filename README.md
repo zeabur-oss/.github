@@ -110,7 +110,7 @@ jobs:
 name: Release
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    tags: ['v[0-9]*'] # the shared workflow checks the rest (SemVer)
   workflow_dispatch:
     inputs:
       version:
