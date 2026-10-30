@@ -54,12 +54,9 @@ dependencies of those packages that have `unsafe` code or link native code. It w
 
 ### Skills
 
-`skills.yml` installs again the skills of `skills-lock.json` that the repository keeps in
-`.claude/skills`, from their GitHub sources, and opens one pull request (`update/skills`) as
-zeabur-oss-bot. An entry with a `ref` moves to its source's default branch; entries whose files
-the repository does not keep stay as they are. Renovate does not read `skills-lock.json`, so this
-runs on its own schedule. The repository needs zeabur-oss-bot installed and
-`ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
+`skills.yml` copies the skills of `skills-lock.json` that come from `zeabur-oss/skills` again into
+`.claude/skills` and opens `update/skills` as zeabur-oss-bot. The repository needs the bot
+installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
 
 ### Signatures
 

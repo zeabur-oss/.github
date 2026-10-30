@@ -7,7 +7,7 @@
       "customType": "regex",
       "description": "The skills CLI that skills.yml runs.",
       "managerFilePatterns": ["/^\\.github/workflows/skills\\.yml$/"],
-      "matchStrings": ["SKILLS_CLI: (?<depName>skills)@(?<currentValue>[0-9.]+)"],
+      "matchStrings": ["npx --yes (?<depName>skills)@(?<currentValue>[0-9.]+)"],
       "datasourceTemplate": "npm"
     }
   ]
