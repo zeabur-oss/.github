@@ -54,8 +54,9 @@ jobs:
               spec="$source#$head"
             fi
             read -ra skills <<<"${names[$source]}"
+            # Without --json, a skill gone upstream fails only when none of the others is found.
             nix shell nixpkgs#nodejs --command npx --yes "$SKILLS_CLI" add "$spec" \
-              --skill "${skills[@]}" --agent claude-code --copy --yes
+              --skill "${skills[@]}" --agent claude-code --copy --yes --json
           done
 
           git add --all .claude/skills skills-lock.json
