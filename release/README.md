@@ -48,7 +48,7 @@ const index = await pushImage(
   },
 );
 // the chart installs exactly that index: image.digest: "" in values.yaml becomes its digest
-const values = "deploy/chart/zeabur-builder/values.yaml";
+const values = "deploy/chart/values.yaml";
 await Bun.write(
   values,
   pinDigest(await Bun.file(values).text(), ["image"], index.digest),
