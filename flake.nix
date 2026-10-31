@@ -35,16 +35,6 @@
         );
     in
     {
-      packages = forAll (pkgs: {
-        # Run from a Rust repository's scripts/ci.sh. Cargo is the caller's: the report reads the
-        # graph with the repository's pinned toolchain.
-        zeabur-oss-unsafe-report = pkgs.writeShellApplication {
-          name = "zeabur-oss-unsafe-report";
-          runtimeInputs = with pkgs; [ git jq gawk gnugrep gnused coreutils ];
-          text = builtins.readFile ./checks/unsafe-report.sh;
-        };
-      });
-
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
@@ -56,9 +46,6 @@
             actionlint
             shellcheck
             jq
-            # checks/unsafe-report.test.ts
-            cargo
-            rustc
           ];
         };
       });

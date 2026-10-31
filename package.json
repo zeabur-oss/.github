@@ -4,7 +4,8 @@
   "type": "module",
   "exports": "./release/zeabur-oss-release.ts",
   "bin": {
-    "zeabur-oss-release": "./release/zeabur-oss-release.ts"
+    "zeabur-oss-release": "./release/zeabur-oss-release.ts",
+    "zeabur-oss-unsafe-report": "./checks/unsafe-report.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4"

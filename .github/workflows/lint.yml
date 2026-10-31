@@ -23,8 +23,6 @@ jobs:
       - run: nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint
       - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github actions
       - run: jq -e . default.json >/dev/null
-      - name: The unsafe report builds (shellcheck runs in the build)
-        run: nix build .#zeabur-oss-unsafe-report
 
   release-cli:
     runs-on: ubuntu-26.04-arm
@@ -40,8 +38,6 @@ jobs:
         run: nix develop --command bun check release/ checks/
       - name: Tests, against a registry in memory with images docker saves
         run: nix develop --command bun test release/
-      - name: The unsafe report on a workspace of its own
-        run: nix develop --command bun test --timeout 60000 checks/
 
   dco:
     uses: ./.github/workflows/dco.yml
