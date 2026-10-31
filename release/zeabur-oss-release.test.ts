@@ -50,6 +50,7 @@ describe("section", () => {
 
   test("is refused when missing or empty", () => {
     expect(() => section(changelog, "v0.2.0")).toThrow(Failure);
+    expect(() => section(changelog, "v0.1.")).toThrow(Failure);
     expect(() =>
       section(
         "## 0.3.0 (2026-12-01)\n\n## 0.2.0 (2026-11-01)\n- x\n",

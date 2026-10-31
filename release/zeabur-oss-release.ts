@@ -79,16 +79,12 @@ export function recorded(
 // on one line, since a release body shows every line break.
 export function section(changelog: string, version: string): string {
   const plain = version.replace(/^v/, "");
-  const lines = changelog.split("\n");
-  const start = lines.findIndex(
-    (l) => l.startsWith("## ") && l.split(" ")[1] === plain,
-  );
-  if (start < 0) fail(`CHANGELOG.md has no section for ${plain}`);
-  const end = lines.findIndex((l, i) => i > start && l.startsWith("## "));
-  const body = lines
-    .slice(start + 1, end < 0 ? undefined : end)
-    .join("\n")
-    .trim();
+  const text = `\n${changelog}\n`;
+  const heading = text.indexOf(`\n## ${plain} (`);
+  if (heading < 0) fail(`CHANGELOG.md has no section for ${plain}`);
+  const start = text.indexOf("\n", heading + 1);
+  const end = text.indexOf("\n## ", start);
+  const body = text.slice(start, end < 0 ? undefined : end).trim();
   if (!body) fail(`CHANGELOG.md's section for ${plain} is empty`);
   return body;
 }
