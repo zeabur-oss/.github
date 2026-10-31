@@ -1,8 +1,7 @@
 name: Skills
 
 # Copies each skill in .claude/skills that zeabur-oss/skills also has again from zeabur-oss/skills,
-# and opens one pull request with what changed. zeabur-oss-bot opens it, because a pull request
-# made with GITHUB_TOKEN does not start CI.
+# and opens one pull request with what changed, as zeabur-oss-bot (actions/bot-pr).
 on:
   workflow_call:
     secrets:
@@ -31,32 +30,11 @@ jobs:
             cp -R "$source/skills/$name" "$dir"
           done
           echo "sha=$(git -C "$source" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - id: app
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      - uses: zeabur-oss/.github/actions/bot-pr@e9404e7156d76bad0877ae7ac6c805aac93c5900 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-          permission-pull-requests: write
-      # The commit's author must match its sign-off (the DCO check).
-      - id: bot
-        env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
-          APP_SLUG: ${{ steps.app.outputs.app-slug }}
-        run: |
-          id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
-          echo "identity=${APP_SLUG}[bot] <${id}+${APP_SLUG}[bot]@users.noreply.github.com>" >> "$GITHUB_OUTPUT"
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        with:
-          token: ${{ steps.app.outputs.token }}
-          author: ${{ steps.bot.outputs.identity }}
-          committer: ${{ steps.bot.outputs.identity }}
-          signoff: true
-          sign-commits: true
           add-paths: .claude/skills
           branch: update/skills
-          delete-branch: true
-          commit-message: "chore(skills): update the shared skills"
           title: "chore(skills): update the shared skills"
           body: Copied again from zeabur-oss/skills@${{ steps.copy.outputs.sha }}.
