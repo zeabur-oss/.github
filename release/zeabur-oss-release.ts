@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 // The steps of a release that every zeabur-oss repository does the same way, on crane, helm,
 // cosign and gh, which the caller's dev shell provides. A repository's scripts/release.ts
-// imports it (@zeabur-oss/release) and keeps the rest; the shared release workflow runs the same
-// functions as the zeabur-oss-release command. Each throws Failure when the release must stop.
+// imports it (@zeabur-oss/release) and keeps the rest; the shared release workflow runs notes,
+// checksums and verifyAssets as the zeabur-oss-release command. Each throws Failure when the
+// release must stop.
 //
 // push* append to <out>/digests.txt and <out>/subjects.json. digests.txt has one line per image,
 // index or chart: its kind (`<label> <os>/<arch>`, `<label> index` or `chart`; an empty label is
@@ -11,16 +12,12 @@
 import { $ } from "bun";
 import { appendFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 
 const usage = `usage:
-  zeabur-oss-release absent <ref>...
-  zeabur-oss-release push-image <out> <label> <repo>:<tag> <os>/<arch>=<image.tar>...
-  zeabur-oss-release push-chart <out> <oci-repo> <chart.tgz>
+  zeabur-oss-release notes <CHANGELOG.md> <vX.Y.Z> [--docs <url>]
   zeabur-oss-release checksums <dir>
-  zeabur-oss-release notes <CHANGELOG.md> <vX.Y.Z> [<docs-url>]
-  zeabur-oss-release verify-assets <dir>
-  zeabur-oss-release verify-image <digests.txt> <label> <os>/<arch>...
-  zeabur-oss-release verify-chart <digests.txt> <chart.tgz>`;
+  zeabur-oss-release verify-assets <dir>`;
 
 export class Failure extends Error {}
 
@@ -249,41 +246,17 @@ export async function verifyChart(digestsFile: string, chart: string): Promise<R
 }
 
 async function main(args: string[]) {
-  const [command, ...rest] = args;
-  const need = (ok: boolean) => ok || fail(usage);
-  switch (command) {
-    case "absent":
-      need(rest.length > 0);
-      return absent(...rest);
-    case "push-image":
-      need(rest.length >= 4);
-      await pushImage(rest[0], rest[1], rest[2], Object.fromEntries(rest.slice(3).map((a) => a.split("=", 2))));
-      return;
-    case "push-chart":
-      need(rest.length === 3);
-      await pushChart(rest[0], rest[1], rest[2]);
-      return;
-    case "checksums":
-      need(rest.length === 1);
-      return checksums(rest[0]);
-    case "notes":
-      need(rest.length === 2 || rest.length === 3);
-      process.stdout.write(await notes(rest[0], rest[1], rest[2]));
-      return;
-    case "verify-assets":
-      need(rest.length === 1);
-      return verifyAssets(rest[0]);
-    case "verify-image":
-      need(rest.length >= 3);
-      await verifyImage(rest[0], rest[1], rest.slice(2));
-      return;
-    case "verify-chart":
-      need(rest.length === 2);
-      await verifyChart(rest[0], rest[1]);
-      return;
-    default:
-      fail(usage);
+  let parsed;
+  try {
+    parsed = parseArgs({ args, options: { docs: { type: "string" } }, allowPositionals: true });
+  } catch {
+    fail(usage);
   }
+  const { values, positionals: [command, ...rest] } = parsed;
+  if (command === "notes" && rest.length === 2) process.stdout.write(await notes(rest[0], rest[1], values.docs));
+  else if (command === "checksums" && rest.length === 1 && !values.docs) await checksums(rest[0]);
+  else if (command === "verify-assets" && rest.length === 1 && !values.docs) await verifyAssets(rest[0]);
+  else fail(usage);
 }
 
 if (import.meta.main) {

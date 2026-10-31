@@ -21,41 +21,36 @@ helm come from the caller's dev shell.
 ```
 
 ```ts
-import { absent, pushImage, verifyImage } from "@zeabur-oss/release";
+import { absent, pushChart, pushImage, verifyChart, verifyImage } from "@zeabur-oss/release";
 
+// publish: refuse every tag first, then each image by digest and its index tagged X.Y.Z, then the
+// chart; each digest is signed and recorded in published/digests.txt and subjects.json
+await absent("ghcr.io/zeabur-oss/builder:0.1.1", "ghcr.io/zeabur-oss/charts/zeabur-builder:0.1.1");
 const index = await pushImage("published", "builder", "ghcr.io/zeabur-oss/builder:0.1.1", {
   "linux/amd64": "candidate-linux-amd64/builder.tar",
   "linux/arm64": "candidate-linux-arm64/builder.tar",
 });
+await pushChart("published", "oci://ghcr.io/zeabur-oss/charts", "published/zeabur-builder-0.1.1.tgz");
+
+// verify: what a user checks, with no registry login
+await verifyImage("downloaded/digests.txt", "builder", ["linux/amd64", "linux/arm64"]);
+await verifyChart("downloaded/digests.txt", "downloaded/zeabur-builder-0.1.1.tgz");
 ```
 
 Each function throws `Failure` when the release must stop; push* return what they pushed and
-verify* what they verified.
+verify* what they verified. verify* read the signer from `RELEASE_CERT_IDENTITY_REGEXP`,
+`RELEASE_SIGNER_WORKFLOW`, `RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`, which the
+release workflow sets.
 
-## Commands
+## Command
 
-The same steps as a command, `node_modules/.bin/zeabur-oss-release` after `bun install`:
+The release workflow runs three of the functions as `node_modules/.bin/zeabur-oss-release`:
 
 ```sh
-# publish: refuse every tag first, then each image by digest and its index tagged X.Y.Z, then
-# the chart; each digest is signed and recorded in published/digests.txt and subjects.json
-zeabur-oss-release absent ghcr.io/zeabur-oss/builder:0.1.1 ghcr.io/zeabur-oss/charts/zeabur-builder:0.1.1
-zeabur-oss-release push-image published builder ghcr.io/zeabur-oss/builder:0.1.1 \
-  linux/amd64=candidate-linux-amd64/builder.tar linux/arm64=candidate-linux-arm64/builder.tar
-zeabur-oss-release push-chart published oci://ghcr.io/zeabur-oss/charts zeabur-builder-0.1.1.tgz
-
-# the release workflow: the signed checksums of every asset, and the notes
-zeabur-oss-release checksums release/assets
-zeabur-oss-release notes CHANGELOG.md v0.1.1 https://oss.zeabur.com/docs/builder/ >release/notes.md
-
-# verify: what a user checks, with no registry login
-zeabur-oss-release verify-assets downloaded
-zeabur-oss-release verify-image downloaded/digests.txt builder linux/amd64 linux/arm64
-zeabur-oss-release verify-chart downloaded/digests.txt downloaded/zeabur-builder-0.1.1.tgz
+zeabur-oss-release notes CHANGELOG.md v0.1.1 --docs https://oss.zeabur.com/docs/builder/ >release/notes.md
+zeabur-oss-release checksums release/assets     # SHA256SUMS of every asset, signed
+zeabur-oss-release verify-assets downloaded     # the signature, the sums, each attestation
 ```
-
-`verify-*` read the signer from `RELEASE_CERT_IDENTITY_REGEXP`, `RELEASE_SIGNER_WORKFLOW`,
-`RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`, which the release workflow sets.
 
 ## What it holds to
 
