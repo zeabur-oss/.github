@@ -99,6 +99,20 @@ func TestSectionKnopeHeading(t *testing.T) {
 	}
 }
 
+func TestSectionPrerelease(t *testing.T) {
+	text := "## 0.1.2-rc.1 (2026-10-31)\n\n- Second.\n\n## 0.1.2-rc.0 (2026-10-30)\n\n- First.\n"
+	for v, want := range map[string]string{"v0.1.2-rc.1": "- Second.\n", "v0.1.2-rc.0": "- First.\n"} {
+		got, err := Section(strings.NewReader(text), v)
+		if err != nil || got != want {
+			t.Errorf("%s: got %q, %v", v, got, err)
+		}
+	}
+	// The release does not read its pre-releases' sections.
+	if _, err := Section(strings.NewReader(text), "v0.1.2"); err == nil {
+		t.Error("v0.1.2 read a pre-release's section")
+	}
+}
+
 func TestSectionMissing(t *testing.T) {
 	for _, v := range []string{"v0.2.0", "v0.1", "0.1.1.1", "v0.1.1+build"} {
 		_, err := Section(strings.NewReader(changelog), v)

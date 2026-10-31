@@ -17,7 +17,8 @@ func newVersionCmd() *cobra.Command {
 it as key=value lines, for $GITHUB_OUTPUT or a script:
 
   plain       the version without v, as manifests, images and charts carry it
-  normal      the version without its pre-release part, whose CHANGELOG.md section it uses
+  normal      the version without its pre-release part, whose CHANGELOG.md section a pre-release
+              without its own uses
   prerelease  true for a version with a pre-release part (-beta.1, -rc.1), else false`,
 		Example: `  zeabur-oss-release version v0.1.2-beta.1`,
 		Args:    cobra.ExactArgs(1),

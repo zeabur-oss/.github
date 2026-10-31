@@ -10,6 +10,7 @@ package notes
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -36,20 +37,32 @@ func (e ErrNoSection) Error() string {
 // Section returns the text of the section headed `## X.Y.Z`, as knope writes it, or `## [X.Y.Z]`,
 // as Keep a Changelog does, optionally followed by other text after a space (` (2026-10-31)`,
 // ` - 2026-10-31`). The heading is left out and soft line breaks are joined. The version may be
-// given with or without its v. A pre-release has no section of its own: v0.1.2-beta.1 reads
-// ## 0.1.2.
+// given with or without its v. A pre-release reads its own section, as knope writes one for each
+// (## 0.1.2-rc.1), or else the section of its normal version (## 0.1.2).
 func Section(changelog io.Reader, v string) (string, error) {
 	parsed, err := version.Parse("v" + strings.TrimPrefix(v, "v"))
 	if err != nil {
 		return "", err
 	}
-	plain := parsed.Normal
+	data, err := io.ReadAll(changelog)
+	if err != nil {
+		return "", err
+	}
+	text, err := section(string(data), parsed.Plain)
+	var missing ErrNoSection
+	if parsed.Prerelease && errors.As(err, &missing) {
+		return section(string(data), parsed.Normal)
+	}
+	return text, err
+}
+
+func section(changelog, plain string) (string, error) {
 	headings := []string{"## " + plain, "## [" + plain + "]"}
 
 	var lines []string
 	found := false
 	inFence := ""
-	scanner := bufio.NewScanner(changelog)
+	scanner := bufio.NewScanner(strings.NewReader(changelog))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")

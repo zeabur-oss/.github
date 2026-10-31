@@ -91,7 +91,8 @@ that knope would not read.
 `release-pr.yml`, run by hand, runs `knope prepare-release` in the caller's dev shell: the change
 files become the next `## X.Y.Z (date)` section of `CHANGELOG.md`, the version in every versioned
 file follows, and the change files are deleted. zeabur-oss-bot opens `release/next` with that as
-`chore(release): vX.Y.Z`; `version` sets the version instead. Merged, the same workflow on `main`
+`chore(release): vX.Y.Z`; `version` sets the version instead, and `prerelease` makes it a
+pre-release. Merged, the same workflow on `main`
 tags the commit `vX.Y.Z` as the bot, which starts `release.yml`. Commit titles never reach the
 changelog: knope reads only the change files.
 
@@ -192,6 +193,9 @@ on:
       version:
         description: 'Version instead of the one the change files give (0.2.0); empty for theirs'
         default: ''
+      prerelease:
+        description: 'Pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release'
+        default: ''
   push:
     branches: [main]
 permissions:
@@ -204,6 +208,7 @@ jobs:
     uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # main
     with:
       version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
     secrets:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
@@ -277,15 +282,16 @@ jobs:
 3. zeabur-oss-bot tags the merge commit; the Release workflow leaves a draft release.
 4. Check the draft and publish it. Releases are immutable once published.
 
-A pre-release is still prepared by hand: its manifests carry the full version, it has the section
-of its normal version, and a maintainer pushes its tag from `main`. The change files stay; the
-release pull request of that version later replaces the hand-written section with knope's.
+For a pre-release, run it with a `prerelease` label (`rc`, `beta`): knope writes `vX.Y.Z-rc.N`, its
+own section with every change since the last normal release, and keeps the change files, so the
+normal release later collects them all into `## X.Y.Z`.
 
 A tag is a [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html) version with a `v` and no build
 metadata. `vX.Y.Z`, `v0.*` included, is a normal release. A tag with a pre-release part
-(`v0.1.2-beta.1`, `v1.0.0-rc.1`) is a GitHub pre-release, never marked latest. A pre-release
-shares the `CHANGELOG.md` section of its normal version (`## 0.1.2`), is tagged on `main` like
-any other release, and its manifests carry the full version (`0.1.2-beta.1`).
+(`v0.1.2-beta.1`, `v1.0.0-rc.1`) is a GitHub pre-release, never marked latest. A pre-release has
+its own `CHANGELOG.md` section (`## 0.1.2-rc.1`), or else reads that of its normal version
+(`## 0.1.2`); it is tagged on `main` like any other release, and its manifests carry the full
+version (`0.1.2-rc.1`).
 
 ## Contributing
 

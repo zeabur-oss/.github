@@ -1,14 +1,20 @@
 name: Release pull request
 
 # Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
-# version, and zeabur-oss-bot opens the pull request `chore(release): vX.Y.Z` with them. On main,
-# once that pull request is merged: zeabur-oss-bot tags the commit vX.Y.Z, which starts the
-# caller's release. Tags pushed with GITHUB_TOKEN start no workflow, so the bot pushes it.
+# version, and zeabur-oss-bot opens the pull request `chore(release): vX.Y.Z` with them. With a
+# pre-release label, knope writes vX.Y.Z-<label>.N with every change since the last normal release
+# and keeps the change files for the next one. On main, once that pull request is merged:
+# zeabur-oss-bot tags the commit, which starts the caller's release. Tags pushed with GITHUB_TOKEN
+# start no workflow, so the bot pushes it.
 on:
   workflow_call:
     inputs:
       version:
         description: The version to release instead of the one the change files give (0.2.0); empty for theirs.
+        type: string
+        default: ''
+      prerelease:
+        description: The pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release.
         type: string
         default: ''
       runner:
@@ -36,14 +42,20 @@ jobs:
       - id: knope
         env:
           VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
         run: |
           VERSION="${VERSION#v}"
-          if [[ -n "$VERSION" && ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::$VERSION is not X.Y.Z; a pre-release is still prepared by hand"
+          if [[ -n "$VERSION" && ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$VERSION is not X.Y.Z or X.Y.Z-<pre-release>"
+            exit 1
+          fi
+          if [[ -n "$PRERELEASE" && ! "$PRERELEASE" =~ ^[a-z]+$ ]]; then
+            echo "::error::the pre-release label is lowercase letters, such as rc or beta"
             exit 1
           fi
           args=()
-          [[ -z "$VERSION" ]] || args=(--override-version "$VERSION")
+          [[ -z "$VERSION" ]] || args+=(--override-version "$VERSION")
+          [[ -z "$PRERELEASE" ]] || args+=(--prerelease-label "$PRERELEASE")
           nix develop --command knope prepare-release "${args[@]}"
           version=$(awk '/^## [0-9]/ { print $2; exit }' CHANGELOG.md)
           if [[ -n "$VERSION" && "$version" != "$VERSION" ]]; then
@@ -54,12 +66,6 @@ jobs:
             echo "::error::v$version is already tagged"
             exit 1
           fi
-          # A pre-release of this version left its own section, written by hand; knope's replaces it.
-          awk -v v="$version" '
-            /^## / { skip = 0; if ($2 == v || $2 == "[" v "]") { if (seen++) skip = 1 } }
-            !skip
-          ' CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md"
-          cp "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
           echo "version=$version" >> "$GITHUB_OUTPUT"
           {
             echo 'notes<<EOF'
@@ -109,12 +115,12 @@ jobs:
       - id: release
         run: |
           subject=$(git log -1 --format=%s)
-          if [[ ! "$subject" =~ ^chore\(release\):\ v([0-9]+\.[0-9]+\.[0-9]+)(\ \(#[0-9]+\))?$ ]]; then
+          if [[ ! "$subject" =~ ^chore\(release\):\ v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)(\ \(#[0-9]+\))?$ ]]; then
             echo "Not a release pull request: $subject"
             exit 0
           fi
           version=${BASH_REMATCH[1]}
-          if ! grep -qE "^## (\[$version\]|$version)( |$)" CHANGELOG.md; then
+          if ! awk -v v="$version" '$1 == "##" && ($2 == v || $2 == "[" v "]") { f = 1 } END { exit !f }' CHANGELOG.md; then
             echo "::error::CHANGELOG.md has no section ## $version"
             exit 1
           fi
