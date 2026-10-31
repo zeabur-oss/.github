@@ -268,22 +268,33 @@ export async function notes(
   return text;
 }
 
+// The file names a SHA256SUMS lists, whole: sha256sum writes `<sha256>  <name>`.
+export function listedIn(sums: string): string[] {
+  return sums
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const m = /^[0-9a-f]{64} [ *](.+)$/.exec(line);
+      if (!m)
+        fail(`SHA256SUMS has a line that is not <sha256>  <file>: ${line}`);
+      return m[1];
+    });
+}
+
 export async function verifyAssets(dir: string) {
   const id = signer();
   await $`cosign verify-blob ${id.cosign} --bundle ${join(dir, "SHA256SUMS.sigstore.json")} ${join(dir, "SHA256SUMS")}`;
   // SHA256SUMS lists every other asset, and nothing else.
-  const listed = (await Bun.file(join(dir, "SHA256SUMS")).text())
-    .trim()
-    .split("\n")
-    .map((l) => l.split(/\s+/)[1])
-    .sort();
+  const listed = listedIn(
+    await Bun.file(join(dir, "SHA256SUMS")).text(),
+  ).sort();
   const assets = (await readdir(dir))
     .filter((f) => f !== "SHA256SUMS" && f !== "SHA256SUMS.sigstore.json")
     .sort();
-  if (listed.join(" ") !== assets.join(" "))
-    fail(
-      `SHA256SUMS lists ${listed.join(" ")}, not the assets ${assets.join(" ")}`,
-    );
+  const names = (files: string[]) =>
+    files.map((f) => JSON.stringify(f)).join(", ");
+  if (names(listed) !== names(assets))
+    fail(`SHA256SUMS lists ${names(listed)}, not the assets ${names(assets)}`);
   await $`sha256sum --check --strict SHA256SUMS`.cwd(dir);
   for (const asset of assets)
     await $`gh attestation verify ${join(dir, asset)} ${id.gh}`;

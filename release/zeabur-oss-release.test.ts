@@ -10,6 +10,7 @@ import {
   Failure,
   Ref,
   checksums,
+  listedIn,
   parseDigests,
   pushChart,
   pushImage,
@@ -87,6 +88,21 @@ describe("digests.txt", () => {
     expect(() => Ref.parse("ghcr.io/zeabur-oss/builder:0.1.1")).toThrow(
       Failure,
     );
+  });
+});
+
+describe("SHA256SUMS", () => {
+  const sum = "a".repeat(64);
+
+  test("lists each file name whole", () => {
+    expect(listedIn(`${sum}  My App.dmg\n${sum} *digests.txt\n`)).toEqual([
+      "My App.dmg",
+      "digests.txt",
+    ]);
+  });
+
+  test("refuses a line that is not a checksum", () => {
+    expect(() => listedIn("My App.dmg\n")).toThrow(Failure);
   });
 });
 
@@ -262,13 +278,11 @@ describe("against a registry", () => {
       join(assets, "digests.txt"),
     );
     await cp(join(work, "smoke-0.0.1.tgz"), join(assets, "smoke-0.0.1.tgz"));
+    await writeFile(join(assets, "My App.dmg"), "an app");
     await checksums(assets);
-    expect(
-      (await Bun.file(join(assets, "SHA256SUMS")).text())
-        .split("\n")
-        .filter(Boolean)
-        .map((l) => l.split(/\s+/)[1]),
-    ).toEqual(["digests.txt", "smoke-0.0.1.tgz"]);
+    expect(listedIn(await Bun.file(join(assets, "SHA256SUMS")).text())).toEqual(
+      ["My App.dmg", "digests.txt", "smoke-0.0.1.tgz"],
+    );
     await verifyAssets(assets);
 
     await writeFile(join(assets, "extra.txt"), "extra");
