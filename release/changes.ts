@@ -99,7 +99,8 @@ export async function prepareRelease(
     ...(want ? ["--override-version", want] : []),
     ...(prerelease ? ["--prerelease-label", prerelease] : []),
   ];
-  await $`knope prepare-release ${args}`;
+  // stdout carries only the tag; knope's log and the steps it runs go to stderr.
+  await $`knope prepare-release ${args} 1>&2`;
   const changelog = await Bun.file("CHANGELOG.md").text();
   const top = changelog.match(/^## (\S+) \(/m)?.[1];
   if (!top) fail("knope wrote no ## X.Y.Z (date) section to CHANGELOG.md");

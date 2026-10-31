@@ -105,6 +105,12 @@ name = "prepare-release"
 
 [[workflows.steps]]
 type = "PrepareRelease"
+
+# A caller's own step, such as \`bun scripts/release.ts bump\`, may print.
+[[workflows.steps]]
+type = "Command"
+command = "echo set $version"
+variables = { "$version" = "Version" }
 `,
     );
     await Bun.write(
@@ -125,6 +131,12 @@ type = "PrepareRelease"
   test("the change files give the version, a minor change before 1.0 a patch", async () => {
     expect(await prepareRelease()).toBe("v0.1.2");
     expect(await Bun.file("CHANGELOG.md").text()).toContain("## 0.1.2 (");
+    await reset();
+  });
+  test("knope's output stays out of the printed tag", async () => {
+    const cli = join(cwd, "release/zeabur-oss-release.ts");
+    const out = await $`bun ${cli} prepare-release`.text();
+    expect(out).toBe("v0.1.2\n");
     await reset();
   });
   test("a pre-release label", async () => {

@@ -89,7 +89,8 @@ jobs:
       - id: release
         run: |
           subject=$(git log -1 --format=%s)
-          echo "tag=$(nix develop --command node_modules/.bin/zeabur-oss-release release-of "$subject")" >> "$GITHUB_OUTPUT"
+          tag=$(nix develop --command node_modules/.bin/zeabur-oss-release release-of "$subject")
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - id: app
         if: steps.release.outputs.tag != ''
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
