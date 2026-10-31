@@ -19,22 +19,20 @@
       # A repository adds this to its dev shell, pinned by its flake.lock:
       #   inputs.oss-release.url = "github:zeabur-oss/.github";
       #   packages = [ oss-release.packages.${system}.zeabur-oss-release ];
-      # cosign, gh and helm come with it: it signs, verifies and pushes charts through them.
+      # crane, cosign, gh and helm come with it: it pushes, signs and verifies through them.
       packages = forAll (pkgs: rec {
-        zeabur-oss-release = pkgs.buildGoModule {
-          pname = "zeabur-oss-release";
-          version = "0";
-          src = ./release;
-          subPackages = [ "cmd/zeabur-oss-release" ];
-          # Change it when go.sum changes: nix build prints the new value.
-          vendorHash = "sha256-L4BvEvP6KpazWXeawM6pCabuyW2Bm0G6t7l62Tcafz0=";
-          env.CGO_ENABLED = 0;
-          ldflags = [ "-s" "-w" ];
-          nativeBuildInputs = [ pkgs.makeWrapper ];
-          postInstall = ''
-            wrapProgram $out/bin/zeabur-oss-release \
-              --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.cosign pkgs.gh pkgs.kubernetes-helm ]}
-          '';
+        zeabur-oss-release = pkgs.writeShellApplication {
+          name = "zeabur-oss-release";
+          runtimeInputs = with pkgs; [
+            bun
+            crane
+            cosign
+            gh
+            kubernetes-helm
+            coreutils
+            gnutar
+          ];
+          text = ''exec bun ${./release/zeabur-oss-release.ts} "$@"'';
         };
         # Run from a Rust repository's scripts/ci.sh. Cargo is the caller's: the report reads the
         # graph with the repository's pinned toolchain.
@@ -49,8 +47,8 @@
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
-            go
-            gopls
+            bun
+            crane
             cosign
             gh
             kubernetes-helm

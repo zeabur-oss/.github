@@ -20,15 +20,15 @@ One entrypoint per stage, called in the dev shell of the commit being released:
 
 | Stage | Arguments | Does |
 |---|---|---|
-| `check` | `<version>` | The version is the manifests' and has a `CHANGELOG.md` section. |
+| `check` | `<version>` | The version is the manifests'. The workflow then checks the `CHANGELOG.md` section. |
 | `build` | `<version> <os> <arch> <dist>` | Builds one platform into `<dist>` and smokes what it built. |
 | `sign` | `<version> <os> <arch> <dist>` | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
 | `publish` | `<version> <artifacts> <published>` | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed). |
 | `finish` | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer. |
-| `assets` | `<version> <artifacts> <release>` | Writes `<release>/assets/*` with `SHA256SUMS`, and `<release>/notes.md`. |
-| `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft release's assets and their signatures. |
+| `assets` | `<version> <artifacts> <assets>` | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes. |
+| `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first. |
 
-Inputs of the shared `release.yml`: `name`, `version`, `verify-only`, `platforms` (JSON array of
+Inputs of the shared `release.yml`: `name`, `docs` (the documentation the notes link to), `version`, `verify-only`, `platforms` (JSON array of
 `{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
 (default `platforms`), `runner`, `signing-environment` and `telemetry-key`. `build` may leave logs in `$CI_ARTIFACTS`; they
 are uploaded when it fails.
@@ -45,9 +45,9 @@ name. macOS builds of `main` and tags run in it; others build unsigned.
 ### Shared steps
 
 [`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
-signs `SHA256SUMS`, verifies a release and makes the release notes from `CHANGELOG.md`. A
+signs `SHA256SUMS`, verifies a release and copies the release notes from `CHANGELOG.md`. A
 repository gets it from this flake, pinned in its own `flake.lock`, and calls it from its
-`scripts/release.sh` stages.
+`scripts/release.sh` stages; the workflow runs `notes`, `checksums` and `verify-assets` itself.
 
 ### Unsafe report
 

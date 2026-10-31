@@ -5,15 +5,17 @@ name: Release
 # a draft. No CI and no cache here: main's required checks already passed.
 #
 # Stages, each `scripts/release.sh <stage>` in the caller's dev shell:
-#   check   <version>                                 version matches manifests and CHANGELOG
+#   check   <version>                                 the version is the manifests'
 #   build   <version> <os> <arch> <dist>              build and smoke one platform
 #   sign    <version> <os> <arch> <dist>              with signing-environment, on macOS:
 #                                                     Developer ID and notarization
 #   publish <version> <artifacts> <published>         push by digest, sign, write subjects.json
 #   finish  <version> <os> <arch> <artifacts> <dist>  what needs the digests, such as installers
-#   assets  <version> <artifacts> <release>           assets/, SHA256SUMS, notes.md
-#   verify  <version> <os> <arch> <downloaded>        check the draft's assets and signatures
-# verify gets the signer from the RELEASE_* env vars; build may leave logs in $CI_ARTIFACTS.
+#   assets  <version> <artifacts> <assets>            copy the release's files into <assets>
+#   verify  <version> <os> <arch> <downloaded>        check the images and charts of the draft
+# The workflow does the rest with zeabur-oss-release (release/), from the caller's dev shell: the
+# CHANGELOG.md section, SHA256SUMS and its signature, the notes, and verifying the assets. verify
+# gets the signer from the RELEASE_* env vars; build may leave logs in $CI_ARTIFACTS.
 on:
   workflow_call:
     inputs:
@@ -21,6 +23,10 @@ on:
         description: The product, the release's title before the version (Zeabur Builder).
         type: string
         required: true
+      docs:
+        description: The documentation the notes end with a link to (https://oss.zeabur.com/docs/builder/); empty for none.
+        type: string
+        default: ''
       version:
         description: The version to rehearse or verify (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
         type: string
@@ -96,13 +102,16 @@ jobs:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
       - id: version
-        name: The version is the manifests', with a changelog section, on main
+        name: The version is the manifests', with a CHANGELOG.md section, on main
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
           VERIFY_ONLY: ${{ inputs.verify-only }}
         run: |
-          # check runs zeabur-oss-release version, which refuses anything but SemVer with a v.
+          # The manifests take only SemVer; an image tag cannot hold the + of build metadata.
+          [[ "$VERSION" == v* && "$VERSION" != *+* ]] ||
+            { echo "::error::$VERSION is not v and SemVer without build metadata"; exit 1; }
           ./scripts/release.sh check "$VERSION"
+          nix develop --command zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
           if [[ "$GITHUB_EVENT_NAME" == push || "$VERIFY_ONLY" == true ]]; then
             git merge-base --is-ancestor HEAD origin/main ||
               { echo "::error::$VERSION is not on main"; exit 1; }
@@ -268,13 +277,17 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
-      - name: Make the release assets and their checksums
+      - name: Make the release assets, their signed checksums and the notes
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
+          DOCS: ${{ inputs.docs }}
         run: |
-          ./scripts/release.sh assets "$VERSION" artifacts release
-          test -s release/assets/SHA256SUMS
-          test -s release/notes.md
+          mkdir -p release/assets
+          ./scripts/release.sh assets "$VERSION" artifacts release/assets
+          nix develop --command zeabur-oss-release checksums release/assets
+          docs=()
+          [[ -z "$DOCS" ]] || docs=("$DOCS")
+          nix develop --command zeabur-oss-release notes CHANGELOG.md "$VERSION" "${docs[@]}" >release/notes.md
       - name: Attest the release assets' provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -335,4 +348,5 @@ jobs:
           RELEASE_SOURCE_REF: refs/tags/${{ needs.prepare.outputs.version }}
         run: |
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
+          nix develop --command zeabur-oss-release verify-assets downloaded
           "./$SCRIPTS/release.sh" verify "$VERSION" "$OS" "$ARCH" downloaded
