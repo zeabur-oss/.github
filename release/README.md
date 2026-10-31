@@ -25,6 +25,7 @@ helm come from the caller's dev shell.
 ```ts
 import {
   absent,
+  pinDigest,
   pushChart,
   pushImage,
   verifyChart,
@@ -45,6 +46,12 @@ const index = await pushImage(
     "linux/amd64": "candidate-linux-amd64/builder.tar",
     "linux/arm64": "candidate-linux-arm64/builder.tar",
   },
+);
+// the chart installs exactly that index: image.digest: "" in values.yaml becomes its digest
+const values = "deploy/chart/zeabur-builder/values.yaml";
+await Bun.write(
+  values,
+  pinDigest(await Bun.file(values).text(), ["image"], index.digest),
 );
 await pushChart(
   "published",

@@ -10,13 +10,15 @@ import {
   Failure,
   Ref,
   checksums,
-  listedIn,
   parseDigests,
+  pinDigest,
   pushChart,
   pushImage,
   readDigests,
   recorded,
   section,
+  sha256,
+  sums,
   verifyAssets,
   verifyChart,
   verifyImage,
@@ -92,18 +94,74 @@ describe("digests.txt", () => {
   });
 });
 
-describe("SHA256SUMS", () => {
+describe("checksum lists", () => {
   const sum = "a".repeat(64);
 
-  test("lists each file name whole", () => {
-    expect(listedIn(`${sum}  My App.dmg\n${sum} *digests.txt\n`)).toEqual([
-      "My App.dmg",
-      "digests.txt",
-    ]);
+  test("map each whole file name to its SHA-256", () => {
+    expect(sums(`${sum}  My App.dmg\n${sum} *digests.txt\n`)).toEqual(
+      new Map([
+        ["My App.dmg", sum],
+        ["digests.txt", sum],
+      ]),
+    );
   });
 
-  test("refuses a line that is not a checksum", () => {
-    expect(() => listedIn("My App.dmg\n")).toThrow(Failure);
+  test("refuse a line that is not a checksum, or a file twice", () => {
+    expect(() => sums("My App.dmg\n")).toThrow(Failure);
+    expect(() => sums(`${sum}  a\n${sum}  a\n`)).toThrow(Failure);
+  });
+
+  test("sha256 is what sha256sum prints", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "release-sha-"));
+    const file = join(dir, "f");
+    await writeFile(file, "abc");
+    expect(await sha256(file)).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
+    await rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe("pinDigest", () => {
+  const d = digest("d");
+  const values = [
+    "# The server.",
+    "sidecar:",
+    "  image:",
+    '    digest: ""',
+    "image:",
+    "  repository: ghcr.io/zeabur-oss/zeabur",
+    "  # Set by the release.",
+    '  digest: ""',
+    "",
+    "proxy:",
+    "  enabled: true",
+    "  image:",
+    "    repository: ghcr.io/zeabur-oss/proxy",
+    '    digest: ""',
+    "",
+  ].join("\n");
+
+  test("sets only the digest under the key path and keeps the rest", () => {
+    const pinned = pinDigest(values, ["proxy", "image"], d);
+    expect(pinned).toBe(
+      values.replace(/(proxy:[\s\S]*digest: )""/, `$1"${d}"`),
+    );
+    const top = pinDigest(values, ["image"], d);
+    expect(Bun.YAML.parse(top)).toMatchObject({
+      image: { digest: d },
+      sidecar: { image: { digest: "" } },
+      proxy: { image: { digest: "" } },
+    });
+    expect(top).toContain("  # Set by the release.\n");
+  });
+
+  test("refuses a path that is missing, a digest already set, or not a digest", () => {
+    expect(() => pinDigest(values, ["builder", "image"], d)).toThrow(Failure);
+    expect(() => pinDigest(values, ["image", "image"], d)).toThrow(Failure);
+    const once = pinDigest(values, ["image"], d);
+    expect(() => pinDigest(once, ["image"], d)).toThrow("is not empty");
+    expect(() => pinDigest(values, ["image"], "latest")).toThrow(Failure);
   });
 });
 
@@ -287,9 +345,9 @@ describe("against a registry", () => {
     await cp(join(work, "smoke-0.0.1.tgz"), join(assets, "smoke-0.0.1.tgz"));
     await writeFile(join(assets, "My App.dmg"), "an app");
     await checksums(assets);
-    expect(listedIn(await Bun.file(join(assets, "SHA256SUMS")).text())).toEqual(
-      ["My App.dmg", "digests.txt", "smoke-0.0.1.tgz"],
-    );
+    expect([
+      ...sums(await Bun.file(join(assets, "SHA256SUMS")).text()).keys(),
+    ]).toEqual(["My App.dmg", "digests.txt", "smoke-0.0.1.tgz"]);
     await verifyAssets(assets);
 
     await writeFile(join(assets, "extra.txt"), "extra");
