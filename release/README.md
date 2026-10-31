@@ -4,21 +4,37 @@ The steps of a release that every zeabur-oss repository does the same way: push 
 by digest, sign, write and sign `SHA256SUMS`, copy a `CHANGELOG.md` section into the release notes,
 and verify a release as a user would. It is one TypeScript file run by Bun, and each step is a
 call to crane, helm, cosign or gh. A repository's `scripts/release.ts` keeps what is its own (what
-to build, how to smoke it, which assets exist) and calls this command for the rest. The shared
-`release.yml` runs `notes`, `checksums` and `verify-assets` itself.
+to build, how to smoke it, which assets exist) and imports this for the rest. The shared
+`release.yml` runs `notes`, `checksums` and `verify-assets` itself, as the `zeabur-oss-release`
+command of the same package.
 
 ## Getting it
 
-From this repository's flake, pinned by the caller's `flake.lock` like any other input. The
-package brings Bun, crane, cosign, gh and helm with it.
+A git dependency in the caller's `package.json`, pinned by its `bun.lock`. crane, cosign, gh and
+helm come from the caller's dev shell.
 
-```nix
-inputs.oss-release.url = "github:zeabur-oss/.github";
-# in the dev shell:
-packages = [ inputs.oss-release.packages.${system}.zeabur-oss-release ];
+```json
+{
+  "private": true,
+  "dependencies": { "@zeabur-oss/release": "github:zeabur-oss/.github#<commit>" }
+}
 ```
 
+```ts
+import { absent, pushImage, verifyImage } from "@zeabur-oss/release";
+
+const index = await pushImage("published", "builder", "ghcr.io/zeabur-oss/builder:0.1.1", {
+  "linux/amd64": "candidate-linux-amd64/builder.tar",
+  "linux/arm64": "candidate-linux-arm64/builder.tar",
+});
+```
+
+Each function throws `Failure` when the release must stop; push* return what they pushed and
+verify* what they verified.
+
 ## Commands
+
+The same steps as a command, `node_modules/.bin/zeabur-oss-release` after `bun install`:
 
 ```sh
 # publish: refuse every tag first, then each image by digest and its index tagged X.Y.Z, then

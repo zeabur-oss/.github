@@ -46,12 +46,13 @@ name. macOS builds of `main` and tags run in it; others build unsigned.
 
 [`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
 signs `SHA256SUMS`, verifies a release and copies the release notes from `CHANGELOG.md`. A
-repository gets it from this flake, pinned in its own `flake.lock`, and calls it from its
-`scripts/release.ts` stages; the workflow runs `notes`, `checksums` and `verify-assets` itself.
+repository depends on it as `@zeabur-oss/release` in its `package.json`, pinned in its
+`bun.lock`, and imports it in its `scripts/release.ts` stages; the workflow runs `notes`,
+`checksums` and `verify-assets` itself, from the same package.
 
 ### Unsafe report
 
-`zeabur-oss-unsafe-report <package>...`, from the same flake and pin, lists the shipped
+`zeabur-oss-unsafe-report <package>...`, from this flake, pinned in the caller's `flake.lock`, lists the shipped
 dependencies of those packages that have `unsafe` code or link native code. It writes
 `target/unsafe-report.md` and fails on any that the repository's
 `supply-chain/unsafe-allowlist.toml` does not approve. A Rust repository runs it from its

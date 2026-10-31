@@ -1,10 +1,13 @@
+#!/usr/bin/env bun
 // The steps of a release that every zeabur-oss repository does the same way, on crane, helm,
-// cosign and gh. A repository's scripts/release.ts calls it for these and keeps the rest.
+// cosign and gh, which the caller's dev shell provides. A repository's scripts/release.ts
+// imports it (@zeabur-oss/release) and keeps the rest; the shared release workflow runs the same
+// functions as the zeabur-oss-release command. Each throws Failure when the release must stop.
 //
-// push-* append to <out>/digests.txt and <out>/subjects.json. digests.txt has one line per image,
+// push* append to <out>/digests.txt and <out>/subjects.json. digests.txt has one line per image,
 // index or chart: its kind (`<label> <os>/<arch>`, `<label> index` or `chart`; an empty label is
 // left out), two spaces and the reference by digest. subjects.json is what the workflow attests.
-// verify-* read the signer from the RELEASE_* variables the shared release workflow sets.
+// verify* read the signer from the RELEASE_* variables the shared release workflow sets.
 import { $ } from "bun";
 import { appendFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -94,12 +97,19 @@ class Published {
   }
 }
 
-// Fails unless the registry answers that the reference does not exist.
-async function absent(ref: string) {
-  const { exitCode, stderr } = await $`crane digest ${ref}`.nothrow().quiet();
-  if (exitCode === 0) fail(`${ref} already exists; inspect it before trying again`);
-  // The tag is not there, or the repository is not there yet.
-  if (!/MANIFEST_UNKNOWN|NAME_UNKNOWN/.test(stderr.toString())) fail(`cannot check ${ref}: ${stderr}`);
+// The entries of a digests.txt file.
+export async function readDigests(file: string): Promise<{ kind: string; ref: Ref }[]> {
+  return parseDigests(await Bun.file(file).text());
+}
+
+// Fails unless the registry answers that each reference does not exist.
+export async function absent(...refs: string[]) {
+  for (const ref of refs) {
+    const { exitCode, stderr } = await $`crane digest ${ref}`.nothrow().quiet();
+    if (exitCode === 0) fail(`${ref} already exists; inspect it before trying again`);
+    // The tag is not there, or the repository is not there yet.
+    if (!/MANIFEST_UNKNOWN|NAME_UNKNOWN/.test(stderr.toString())) fail(`cannot check ${ref}: ${stderr}`);
+  }
 }
 
 // The platform of a `docker image save` archive, from its image config.
@@ -136,15 +146,16 @@ function signer() {
   };
 }
 
-async function pushImage(out: string, label: string, tagged: string, archives: string[]) {
+// Pushes one image archive per platform ({"linux/amd64": "amd64.tar"}) and their index, tagged;
+// returns the index.
+export async function pushImage(out: string, label: string, tagged: string, archives: Record<string, string>): Promise<Ref> {
   const repo = tagged.slice(0, tagged.lastIndexOf(":"));
   const published = new Published(out);
   await absent(tagged);
   // Each platform image by its digest alone; the index that lists them is pushed last, with the
   // tag, so a run that fails before it leaves no tag and can be repeated.
   const manifests: string[] = [];
-  for (const archive of archives) {
-    const [want, tar] = archive.split("=", 2);
+  for (const [want, tar] of Object.entries(archives)) {
     if ((await platform(tar)) !== want) fail(`${tar} is not a ${want} image`);
     const ref = new Ref(repo, (await $`crane digest --tarball ${tar}`.text()).trim());
     await $`crane push ${tar} ${ref}`.quiet();
@@ -155,9 +166,11 @@ async function pushImage(out: string, label: string, tagged: string, archives: s
   const index = Ref.parse((await $`crane index append --docker-empty-base ${manifests} --tag ${tagged}`.text()).trim());
   await $`cosign sign --yes ${index}`;
   await published.record(kind(label, "index"), index, true);
+  return index;
 }
 
-async function pushChart(out: string, ociRepo: string, chart: string) {
+// Pushes a packaged chart to oci://<repo>/<name>:<version>; returns it by digest.
+export async function pushChart(out: string, ociRepo: string, chart: string): Promise<Ref> {
   const repo = ociRepo.replace(/^oci:\/\//, "");
   const meta = Bun.YAML.parse(await $`helm show chart ${chart}`.text()) as { name: string; version: string };
   const tagged = `${repo}/${meta.name}:${meta.version}`;
@@ -169,9 +182,10 @@ async function pushChart(out: string, ociRepo: string, chart: string) {
   await chartIs(ref, chart);
   await $`cosign sign --yes ${ref}`;
   await new Published(out).record("chart", ref, true);
+  return ref;
 }
 
-async function checksums(dir: string) {
+export async function checksums(dir: string) {
   await rm(join(dir, "SHA256SUMS"), { force: true });
   await rm(join(dir, "SHA256SUMS.sigstore.json"), { force: true });
   const files = (await readdir(dir)).sort();
@@ -180,13 +194,14 @@ async function checksums(dir: string) {
   await $`cosign sign-blob --yes --bundle ${join(dir, "SHA256SUMS.sigstore.json")} ${join(dir, "SHA256SUMS")}`;
 }
 
-async function notes(changelog: string, version: string, docs?: string) {
+// The release body: the version's section, then a link to the documentation.
+export async function notes(changelog: string, version: string, docs?: string): Promise<string> {
   let text = section(await Bun.file(changelog).text(), version) + "\n";
   if (docs) text += `\nInstall, upgrade and verify: [${docs.replace(/^https:\/\//, "").replace(/\/$/, "")}](${docs})\n`;
-  process.stdout.write(text);
+  return text;
 }
 
-async function verifyAssets(dir: string) {
+export async function verifyAssets(dir: string) {
   const id = signer();
   await $`cosign verify-blob ${id.cosign} --bundle ${join(dir, "SHA256SUMS.sigstore.json")} ${join(dir, "SHA256SUMS")}`;
   // SHA256SUMS lists every other asset, and nothing else.
@@ -197,9 +212,10 @@ async function verifyAssets(dir: string) {
   for (const asset of assets) await $`gh attestation verify ${join(dir, asset)} ${id.gh}`;
 }
 
-async function verifyImage(digestsFile: string, label: string, platforms: string[]) {
+// Returns the verified index.
+export async function verifyImage(digestsFile: string, label: string, platforms: string[]): Promise<Ref> {
   const id = signer();
-  const entries = parseDigests(await Bun.file(digestsFile).text());
+  const entries = await readDigests(digestsFile);
   const index = recorded(entries, kind(label, "index"));
   // The index holds exactly the recorded platform images, each signed.
   const want = platforms.map((p) => {
@@ -218,15 +234,18 @@ async function verifyImage(digestsFile: string, label: string, platforms: string
     await $`cosign verify ${id.cosign} ${ref}`.quiet();
   await $`gh attestation verify oci://${index} ${id.gh}`;
   console.log(`verified ${index}`);
+  return index;
 }
 
-async function verifyChart(digestsFile: string, chart: string) {
+// Returns the verified chart.
+export async function verifyChart(digestsFile: string, chart: string): Promise<Ref> {
   const id = signer();
-  const ref = recorded(parseDigests(await Bun.file(digestsFile).text()), "chart");
+  const ref = recorded(await readDigests(digestsFile), "chart");
   await chartIs(ref, chart);
   await $`cosign verify ${id.cosign} ${ref}`.quiet();
   await $`gh attestation verify oci://${ref} ${id.gh}`;
   console.log(`verified ${ref}`);
+  return ref;
 }
 
 async function main(args: string[]) {
@@ -235,29 +254,33 @@ async function main(args: string[]) {
   switch (command) {
     case "absent":
       need(rest.length > 0);
-      for (const ref of rest) await absent(ref);
-      return;
+      return absent(...rest);
     case "push-image":
       need(rest.length >= 4);
-      return pushImage(rest[0], rest[1], rest[2], rest.slice(3));
+      await pushImage(rest[0], rest[1], rest[2], Object.fromEntries(rest.slice(3).map((a) => a.split("=", 2))));
+      return;
     case "push-chart":
       need(rest.length === 3);
-      return pushChart(rest[0], rest[1], rest[2]);
+      await pushChart(rest[0], rest[1], rest[2]);
+      return;
     case "checksums":
       need(rest.length === 1);
       return checksums(rest[0]);
     case "notes":
       need(rest.length === 2 || rest.length === 3);
-      return notes(rest[0], rest[1], rest[2]);
+      process.stdout.write(await notes(rest[0], rest[1], rest[2]));
+      return;
     case "verify-assets":
       need(rest.length === 1);
       return verifyAssets(rest[0]);
     case "verify-image":
       need(rest.length >= 3);
-      return verifyImage(rest[0], rest[1], rest.slice(2));
+      await verifyImage(rest[0], rest[1], rest.slice(2));
+      return;
     case "verify-chart":
       need(rest.length === 2);
-      return verifyChart(rest[0], rest[1]);
+      await verifyChart(rest[0], rest[1]);
+      return;
     default:
       fail(usage);
   }

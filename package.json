@@ -1,0 +1,9 @@
+{
+  "name": "@zeabur-oss/release",
+  "private": true,
+  "type": "module",
+  "exports": "./release/zeabur-oss-release.ts",
+  "bin": {
+    "zeabur-oss-release": "./release/zeabur-oss-release.ts"
+  }
+}

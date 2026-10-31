@@ -35,7 +35,6 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
       - name: Tests, against a registry in memory with images docker saves
         run: nix develop --command bun test release/
-      - run: nix build .#zeabur-oss-release
 
   dco:
     uses: ./.github/workflows/dco.yml
