@@ -156,11 +156,17 @@ describe("against a registry", () => {
     await expect(again).rejects.toThrow("already exists");
   });
 
-  test("pushImage refuses an image for another platform", async () => {
-    const wrong = pushImage(join(work, "published"), "smoke", `${host}/zeabur-oss/smoke:0.0.2`, {
+  test("pushImage refuses an image for another platform before it pushes or records any", async () => {
+    const out = join(work, "wrong");
+    await mkdir(out);
+    const before = await calls();
+    const wrong = pushImage(out, "smoke", `${host}/zeabur-oss/smoke:0.0.2`, {
+      "linux/amd64": join(work, "amd64.tar"),
       "linux/arm64": join(work, "amd64.tar"),
     });
     await expect(wrong).rejects.toThrow("is not a linux/arm64 image");
+    expect(await Bun.file(join(out, "digests.txt")).exists()).toBe(false);
+    expect(await calls()).toEqual(before);
   });
 
   test("verifyImage accepts what was pushed and refuses swapped digests", async () => {

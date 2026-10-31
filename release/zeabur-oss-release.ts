@@ -154,12 +154,16 @@ export async function pushImage(out: string, label: string, tagged: string, arch
   const repo = tagged.slice(0, tagged.lastIndexOf(":"));
   const published = new Published(out);
   await absent(tagged);
+  // Every archive is read and checked before the first push, so a bad one leaves nothing behind.
+  const images: { want: string; tar: string; ref: Ref }[] = [];
+  for (const [want, tar] of Object.entries(archives)) {
+    if ((await platform(tar)) !== want) fail(`${tar} is not a ${want} image`);
+    images.push({ want, tar, ref: new Ref(repo, (await $`crane digest --tarball ${tar}`.text()).trim()) });
+  }
   // Each platform image by its digest alone; the index that lists them is pushed last, with the
   // tag, so a run that fails before it leaves no tag and can be repeated.
   const manifests: string[] = [];
-  for (const [want, tar] of Object.entries(archives)) {
-    if ((await platform(tar)) !== want) fail(`${tar} is not a ${want} image`);
-    const ref = new Ref(repo, (await $`crane digest --tarball ${tar}`.text()).trim());
+  for (const { want, tar, ref } of images) {
     await $`crane push ${tar} ${ref}`.quiet();
     await $`cosign sign --yes ${ref}`;
     await published.record(kind(label, want), ref);

@@ -306,6 +306,8 @@ jobs:
 
   verify:
     name: verify (${{ matrix.os }}-${{ matrix.arch }})
+    # A skipped finish would skip this too without the explicit condition.
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
     needs: [prepare, release]
     strategy:
       fail-fast: false
