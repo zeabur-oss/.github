@@ -18,15 +18,15 @@ install Nix, cache and upload.
 
 One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell of the commit being released (so the dev shell has Bun):
 
-| Stage | Arguments | Does |
-|---|---|---|
-| `check` | `<version>` | The version is the manifests'. The workflow then checks the `CHANGELOG.md` section. |
-| `build` | `<version> <os> <arch> <dist>` | Builds one platform into `<dist>` and smokes what it built. |
-| `sign` | `<version> <os> <arch> <dist>` | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
-| `publish` | `<version> <artifacts> <published>` | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed). |
-| `finish` | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer. |
-| `assets` | `<version> <artifacts> <assets>` | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes. |
-| `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first. |
+| Stage     | Arguments                                  | Does                                                                                                                                                        |
+| --------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `check`   | `<version>`                                | The version is the manifests'. The workflow then checks the `CHANGELOG.md` section.                                                                         |
+| `build`   | `<version> <os> <arch> <dist>`             | Builds one platform into `<dist>` and smokes what it built.                                                                                                 |
+| `sign`    | `<version> <os> <arch> <dist>`             | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
+| `publish` | `<version> <artifacts> <published>`        | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed).                    |
+| `finish`  | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer.                                                             |
+| `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes.                                                        |
+| `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first.                                                           |
 
 Inputs of the shared `release.yml`: `name`, `docs` (the documentation the notes link to), `version`, `platforms` (JSON array of
 `{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
@@ -141,11 +141,11 @@ jobs:
 name: Release
 on:
   push:
-    tags: ['v[0-9]*'] # the shared workflow checks the rest (SemVer)
+    tags: ["v[0-9]*"] # the shared workflow checks the rest (SemVer)
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to rehearse (v0.1.1); a rehearsal never publishes'
+        description: "Version to rehearse (v0.1.1); a rehearsal never publishes"
         required: true
 permissions:
   contents: read
@@ -174,7 +174,7 @@ jobs:
 name: Skills
 on:
   schedule:
-    - cron: '0 17 * * 0'
+    - cron: "0 17 * * 0"
   workflow_dispatch:
 permissions:
   contents: read

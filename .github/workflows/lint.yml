@@ -33,6 +33,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
+      - name: Formatted
+        run: nix develop --command bun fmt --check .
+      - name: Type checked
+        run: nix develop --command bun check release/
       - name: Tests, against a registry in memory with images docker saves
         run: nix develop --command bun test release/
 

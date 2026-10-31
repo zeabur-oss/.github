@@ -26,11 +26,11 @@ on:
       docs:
         description: The documentation the notes end with a link to (https://oss.zeabur.com/docs/builder/); empty for none.
         type: string
-        default: ''
+        default: ""
       version:
         description: The version to rehearse (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
         type: string
-        default: ''
+        default: ""
       platforms:
         description: JSON array of {os, arch, runner} to build, smoke and finish.
         type: string
@@ -44,7 +44,7 @@ on:
       finish-platforms:
         description: JSON array of {os, arch, runner} to finish on; empty for the platforms.
         type: string
-        default: ''
+        default: ""
       runner:
         description: The runner of the jobs that are not per platform.
         type: string
@@ -54,13 +54,13 @@ on:
           The environment holding the APPLE_* secrets; macOS builds of main and tags run in it
           and are signed and notarized. Empty for none.
         type: string
-        default: ''
+        default: ""
       telemetry-key:
         description: >-
           A project key that tag builds compile in as ZEABUR_TELEMETRY_KEY, for programs that
           report usage; other builds get none. Empty for none.
         type: string
-        default: ''
+        default: ""
     secrets:
       APPLE_CERTIFICATE_P12:
         description: The Developer ID Application certificate with its key, .p12 in base64.

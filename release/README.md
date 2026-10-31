@@ -16,25 +16,51 @@ helm come from the caller's dev shell.
 ```json
 {
   "private": true,
-  "dependencies": { "@zeabur-oss/release": "github:zeabur-oss/.github#<commit>" }
+  "dependencies": {
+    "@zeabur-oss/release": "github:zeabur-oss/.github#<commit>"
+  }
 }
 ```
 
 ```ts
-import { absent, pushChart, pushImage, verifyChart, verifyImage } from "@zeabur-oss/release";
+import {
+  absent,
+  pushChart,
+  pushImage,
+  verifyChart,
+  verifyImage,
+} from "@zeabur-oss/release";
 
 // publish: refuse every tag first, then each image by digest and its index tagged X.Y.Z, then the
 // chart; each digest is signed and recorded in published/digests.txt and subjects.json
-await absent("ghcr.io/zeabur-oss/builder:0.1.1", "ghcr.io/zeabur-oss/charts/zeabur-builder:0.1.1");
-const index = await pushImage("published", "builder", "ghcr.io/zeabur-oss/builder:0.1.1", {
-  "linux/amd64": "candidate-linux-amd64/builder.tar",
-  "linux/arm64": "candidate-linux-arm64/builder.tar",
-});
-await pushChart("published", "oci://ghcr.io/zeabur-oss/charts", "published/zeabur-builder-0.1.1.tgz");
+await absent(
+  "ghcr.io/zeabur-oss/builder:0.1.1",
+  "ghcr.io/zeabur-oss/charts/zeabur-builder:0.1.1",
+);
+const index = await pushImage(
+  "published",
+  "builder",
+  "ghcr.io/zeabur-oss/builder:0.1.1",
+  {
+    "linux/amd64": "candidate-linux-amd64/builder.tar",
+    "linux/arm64": "candidate-linux-arm64/builder.tar",
+  },
+);
+await pushChart(
+  "published",
+  "oci://ghcr.io/zeabur-oss/charts",
+  "published/zeabur-builder-0.1.1.tgz",
+);
 
 // verify: what a user checks, with no registry login
-await verifyImage("downloaded/digests.txt", "builder", ["linux/amd64", "linux/arm64"]);
-await verifyChart("downloaded/digests.txt", "downloaded/zeabur-builder-0.1.1.tgz");
+await verifyImage("downloaded/digests.txt", "builder", [
+  "linux/amd64",
+  "linux/arm64",
+]);
+await verifyChart(
+  "downloaded/digests.txt",
+  "downloaded/zeabur-builder-0.1.1.tgz",
+);
 ```
 
 Each function throws `Failure` when the release must stop; push* return what they pushed and

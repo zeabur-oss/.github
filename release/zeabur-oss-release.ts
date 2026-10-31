@@ -57,14 +57,21 @@ export function parseDigests(text: string): { kind: string; ref: Ref }[] {
     .filter((line) => line.trim())
     .map((line) => {
       const at = line.lastIndexOf(" ");
-      return { kind: line.slice(0, at).trim(), ref: Ref.parse(line.slice(at + 1)) };
+      return {
+        kind: line.slice(0, at).trim(),
+        ref: Ref.parse(line.slice(at + 1)),
+      };
     });
 }
 
 // The one reference digests.txt records for a kind.
-export function recorded(entries: { kind: string; ref: Ref }[], what: string): Ref {
+export function recorded(
+  entries: { kind: string; ref: Ref }[],
+  what: string,
+): Ref {
   const found = entries.filter((e) => e.kind === what);
-  if (found.length !== 1) fail(`digests.txt has ${found.length} entries for ${what}, not one`);
+  if (found.length !== 1)
+    fail(`digests.txt has ${found.length} entries for ${what}, not one`);
   return found[0].ref;
 }
 
@@ -73,10 +80,15 @@ export function recorded(entries: { kind: string; ref: Ref }[], what: string): R
 export function section(changelog: string, version: string): string {
   const plain = version.replace(/^v/, "");
   const lines = changelog.split("\n");
-  const start = lines.findIndex((l) => l.startsWith("## ") && l.split(" ")[1] === plain);
+  const start = lines.findIndex(
+    (l) => l.startsWith("## ") && l.split(" ")[1] === plain,
+  );
   if (start < 0) fail(`CHANGELOG.md has no section for ${plain}`);
   const end = lines.findIndex((l, i) => i > start && l.startsWith("## "));
-  const body = lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
+  const body = lines
+    .slice(start + 1, end < 0 ? undefined : end)
+    .join("\n")
+    .trim();
   if (!body) fail(`CHANGELOG.md's section for ${plain} is empty`);
   return body;
 }
@@ -95,7 +107,9 @@ class Published {
 }
 
 // The entries of a digests.txt file.
-export async function readDigests(file: string): Promise<{ kind: string; ref: Ref }[]> {
+export async function readDigests(
+  file: string,
+): Promise<{ kind: string; ref: Ref }[]> {
   return parseDigests(await Bun.file(file).text());
 }
 
@@ -103,16 +117,19 @@ export async function readDigests(file: string): Promise<{ kind: string; ref: Re
 export async function absent(...refs: string[]) {
   for (const ref of refs) {
     const { exitCode, stderr } = await $`crane digest ${ref}`.nothrow().quiet();
-    if (exitCode === 0) fail(`${ref} already exists; inspect it before trying again`);
+    if (exitCode === 0)
+      fail(`${ref} already exists; inspect it before trying again`);
     // The tag is not there, or the repository is not there yet.
-    if (!/MANIFEST_UNKNOWN|NAME_UNKNOWN/.test(stderr.toString())) fail(`cannot check ${ref}: ${stderr}`);
+    if (!/MANIFEST_UNKNOWN|NAME_UNKNOWN/.test(stderr.toString()))
+      fail(`cannot check ${ref}: ${stderr}`);
   }
 }
 
 // The platform of a `docker image save` archive, from its image config.
 async function platform(tar: string): Promise<string> {
   const manifest = await $`tar -xOf ${tar} manifest.json`.json();
-  if (manifest.length !== 1) fail(`${tar} holds ${manifest.length} images, not one`);
+  if (manifest.length !== 1)
+    fail(`${tar} holds ${manifest.length} images, not one`);
   const config = await $`tar -xOf ${tar} ${manifest[0].Config}`.json();
   return `${config.os}/${config.architecture}`;
 }
@@ -121,9 +138,11 @@ async function platform(tar: string): Promise<string> {
 async function chartIs(ref: Ref, chart: string) {
   const manifest = await $`crane manifest ${ref}`.json();
   const layers = manifest.layers.filter(
-    (l: { mediaType: string }) => l.mediaType === "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
+    (l: { mediaType: string }) =>
+      l.mediaType === "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
   );
-  if (layers.length !== 1 || layers[0].digest !== (await sha256(chart))) fail(`${ref} is not ${chart}`);
+  if (layers.length !== 1 || layers[0].digest !== (await sha256(chart)))
+    fail(`${ref} is not ${chart}`);
 }
 
 async function sha256(file: string): Promise<string> {
@@ -139,18 +158,34 @@ function signer() {
   const ref = env("RELEASE_SOURCE_REF");
   return {
     cosign: [
-      "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
-      "--certificate-identity-regexp", env("RELEASE_CERT_IDENTITY_REGEXP"),
-      "--certificate-github-workflow-repository", repository,
-      "--certificate-github-workflow-ref", ref,
+      "--certificate-oidc-issuer",
+      "https://token.actions.githubusercontent.com",
+      "--certificate-identity-regexp",
+      env("RELEASE_CERT_IDENTITY_REGEXP"),
+      "--certificate-github-workflow-repository",
+      repository,
+      "--certificate-github-workflow-ref",
+      ref,
     ],
-    gh: ["--repo", repository, "--signer-workflow", env("RELEASE_SIGNER_WORKFLOW"), "--source-ref", ref],
+    gh: [
+      "--repo",
+      repository,
+      "--signer-workflow",
+      env("RELEASE_SIGNER_WORKFLOW"),
+      "--source-ref",
+      ref,
+    ],
   };
 }
 
 // Pushes one image archive per platform ({"linux/amd64": "amd64.tar"}) and their index, tagged;
 // returns the index.
-export async function pushImage(out: string, label: string, tagged: string, archives: Record<string, string>): Promise<Ref> {
+export async function pushImage(
+  out: string,
+  label: string,
+  tagged: string,
+  archives: Record<string, string>,
+): Promise<Ref> {
   const repo = tagged.slice(0, tagged.lastIndexOf(":"));
   const published = new Published(out);
   await absent(tagged);
@@ -158,7 +193,14 @@ export async function pushImage(out: string, label: string, tagged: string, arch
   const images: { want: string; tar: string; ref: Ref }[] = [];
   for (const [want, tar] of Object.entries(archives)) {
     if ((await platform(tar)) !== want) fail(`${tar} is not a ${want} image`);
-    images.push({ want, tar, ref: new Ref(repo, (await $`crane digest --tarball ${tar}`.text()).trim()) });
+    images.push({
+      want,
+      tar,
+      ref: new Ref(
+        repo,
+        (await $`crane digest --tarball ${tar}`.text()).trim(),
+      ),
+    });
   }
   // Each platform image by its digest alone; the index that lists them is pushed last, with the
   // tag, so a run that fails before it leaves no tag and can be repeated.
@@ -169,22 +211,36 @@ export async function pushImage(out: string, label: string, tagged: string, arch
     await published.record(kind(label, want), ref);
     manifests.push("--manifest", ref.toString());
   }
-  const index = Ref.parse((await $`crane index append --docker-empty-base ${manifests} --tag ${tagged}`.text()).trim());
+  const index = Ref.parse(
+    (
+      await $`crane index append --docker-empty-base ${manifests} --tag ${tagged}`.text()
+    ).trim(),
+  );
   await $`cosign sign --yes ${index}`;
   await published.record(kind(label, "index"), index, true);
   return index;
 }
 
 // Pushes a packaged chart to oci://<repo>/<name>:<version>; returns it by digest.
-export async function pushChart(out: string, ociRepo: string, chart: string): Promise<Ref> {
+export async function pushChart(
+  out: string,
+  ociRepo: string,
+  chart: string,
+): Promise<Ref> {
   const repo = ociRepo.replace(/^oci:\/\//, "");
-  const meta = Bun.YAML.parse(await $`helm show chart ${chart}`.text()) as { name: string; version: string };
+  const meta = Bun.YAML.parse(await $`helm show chart ${chart}`.text()) as {
+    name: string;
+    version: string;
+  };
   const tagged = `${repo}/${meta.name}:${meta.version}`;
   await absent(tagged);
   // crane talks plain HTTP to localhost by itself; helm needs to be told.
   const plainHttp = repo.startsWith("localhost:") ? ["--plain-http"] : [];
   await $`helm push ${chart} oci://${repo} ${plainHttp}`;
-  const ref = new Ref(`${repo}/${meta.name}`, (await $`crane digest ${tagged}`.text()).trim());
+  const ref = new Ref(
+    `${repo}/${meta.name}`,
+    (await $`crane digest ${tagged}`.text()).trim(),
+  );
   await chartIs(ref, chart);
   await $`cosign sign --yes ${ref}`;
   await new Published(out).record("chart", ref, true);
@@ -201,9 +257,14 @@ export async function checksums(dir: string) {
 }
 
 // The release body: the version's section, then a link to the documentation.
-export async function notes(changelog: string, version: string, docs?: string): Promise<string> {
+export async function notes(
+  changelog: string,
+  version: string,
+  docs?: string,
+): Promise<string> {
   let text = section(await Bun.file(changelog).text(), version) + "\n";
-  if (docs) text += `\nInstall, upgrade and verify: [${docs.replace(/^https:\/\//, "").replace(/\/$/, "")}](${docs})\n`;
+  if (docs)
+    text += `\nInstall, upgrade and verify: [${docs.replace(/^https:\/\//, "").replace(/\/$/, "")}](${docs})\n`;
   return text;
 }
 
@@ -211,15 +272,29 @@ export async function verifyAssets(dir: string) {
   const id = signer();
   await $`cosign verify-blob ${id.cosign} --bundle ${join(dir, "SHA256SUMS.sigstore.json")} ${join(dir, "SHA256SUMS")}`;
   // SHA256SUMS lists every other asset, and nothing else.
-  const listed = (await Bun.file(join(dir, "SHA256SUMS")).text()).trim().split("\n").map((l) => l.split(/\s+/)[1]).sort();
-  const assets = (await readdir(dir)).filter((f) => f !== "SHA256SUMS" && f !== "SHA256SUMS.sigstore.json").sort();
-  if (listed.join(" ") !== assets.join(" ")) fail(`SHA256SUMS lists ${listed.join(" ")}, not the assets ${assets.join(" ")}`);
+  const listed = (await Bun.file(join(dir, "SHA256SUMS")).text())
+    .trim()
+    .split("\n")
+    .map((l) => l.split(/\s+/)[1])
+    .sort();
+  const assets = (await readdir(dir))
+    .filter((f) => f !== "SHA256SUMS" && f !== "SHA256SUMS.sigstore.json")
+    .sort();
+  if (listed.join(" ") !== assets.join(" "))
+    fail(
+      `SHA256SUMS lists ${listed.join(" ")}, not the assets ${assets.join(" ")}`,
+    );
   await $`sha256sum --check --strict SHA256SUMS`.cwd(dir);
-  for (const asset of assets) await $`gh attestation verify ${join(dir, asset)} ${id.gh}`;
+  for (const asset of assets)
+    await $`gh attestation verify ${join(dir, asset)} ${id.gh}`;
 }
 
 // Returns the verified index.
-export async function verifyImage(digestsFile: string, label: string, platforms: string[]): Promise<Ref> {
+export async function verifyImage(
+  digestsFile: string,
+  label: string,
+  platforms: string[],
+): Promise<Ref> {
   const id = signer();
   const entries = await readDigests(digestsFile);
   const index = recorded(entries, kind(label, "index"));
@@ -244,7 +319,10 @@ export async function verifyImage(digestsFile: string, label: string, platforms:
 }
 
 // Returns the verified chart.
-export async function verifyChart(digestsFile: string, chart: string): Promise<Ref> {
+export async function verifyChart(
+  digestsFile: string,
+  chart: string,
+): Promise<Ref> {
   const id = signer();
   const ref = recorded(await readDigests(digestsFile), "chart");
   await chartIs(ref, chart);
@@ -257,14 +335,24 @@ export async function verifyChart(digestsFile: string, chart: string): Promise<R
 async function main(args: string[]) {
   let parsed;
   try {
-    parsed = parseArgs({ args, options: { docs: { type: "string" } }, allowPositionals: true });
+    parsed = parseArgs({
+      args,
+      options: { docs: { type: "string" } },
+      allowPositionals: true,
+    });
   } catch {
     fail(usage);
   }
-  const { values, positionals: [command, ...rest] } = parsed;
-  if (command === "notes" && rest.length === 2) process.stdout.write(await notes(rest[0], rest[1], values.docs));
-  else if (command === "checksums" && rest.length === 1 && !values.docs) await checksums(rest[0]);
-  else if (command === "verify-assets" && rest.length === 1 && !values.docs) await verifyAssets(rest[0]);
+  const {
+    values,
+    positionals: [command, ...rest],
+  } = parsed;
+  if (command === "notes" && rest.length === 2)
+    process.stdout.write(await notes(rest[0], rest[1], values.docs));
+  else if (command === "checksums" && rest.length === 1 && !values.docs)
+    await checksums(rest[0]);
+  else if (command === "verify-assets" && rest.length === 1 && !values.docs)
+    await verifyAssets(rest[0]);
   else fail(usage);
 }
 
@@ -273,7 +361,8 @@ if (import.meta.main) {
     await main(process.argv.slice(2));
   } catch (e) {
     if (e instanceof Failure) console.error(`zeabur-oss-release: ${e.message}`);
-    else if (e instanceof $.ShellError) console.error(`zeabur-oss-release: ${e.message}\n${e.stderr}`);
+    else if (e instanceof $.ShellError)
+      console.error(`zeabur-oss-release: ${e.message}\n${e.stderr}`);
     else throw e;
     process.exit(1);
   }

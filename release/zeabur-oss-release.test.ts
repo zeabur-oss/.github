@@ -49,7 +49,12 @@ describe("section", () => {
 
   test("is refused when missing or empty", () => {
     expect(() => section(changelog, "v0.2.0")).toThrow(Failure);
-    expect(() => section("## 0.3.0 (2026-12-01)\n\n## 0.2.0 (2026-11-01)\n- x\n", "v0.3.0")).toThrow(Failure);
+    expect(() =>
+      section(
+        "## 0.3.0 (2026-12-01)\n\n## 0.2.0 (2026-11-01)\n- x\n",
+        "v0.3.0",
+      ),
+    ).toThrow(Failure);
   });
 });
 
@@ -63,17 +68,25 @@ describe("digests.txt", () => {
 
   test("names one reference per kind", () => {
     const entries = parseDigests(text);
-    expect(recorded(entries, "builder index").toString()).toBe(`ghcr.io/zeabur-oss/builder@${digest("b")}`);
-    expect(recorded(entries, "chart").repo).toBe("ghcr.io/zeabur-oss/charts/zeabur-builder");
+    expect(recorded(entries, "builder index").toString()).toBe(
+      `ghcr.io/zeabur-oss/builder@${digest("b")}`,
+    );
+    expect(recorded(entries, "chart").repo).toBe(
+      "ghcr.io/zeabur-oss/charts/zeabur-builder",
+    );
   });
 
   test("refuses a kind that is missing or twice", () => {
-    expect(() => recorded(parseDigests(text), "builder linux/arm64")).toThrow(Failure);
+    expect(() => recorded(parseDigests(text), "builder linux/arm64")).toThrow(
+      Failure,
+    );
     expect(() => recorded(parseDigests(text + text), "chart")).toThrow(Failure);
   });
 
   test("refuses a reference that is not by digest", () => {
-    expect(() => Ref.parse("ghcr.io/zeabur-oss/builder:0.1.1")).toThrow(Failure);
+    expect(() => Ref.parse("ghcr.io/zeabur-oss/builder:0.1.1")).toThrow(
+      Failure,
+    );
   });
 });
 
@@ -82,8 +95,12 @@ describe("against a registry", () => {
   let registry: ReturnType<typeof Bun.spawn>;
   let host: string;
   let saved: NodeJS.ProcessEnv;
-  const calls = async () => (await Bun.file(join(work, "calls.log")).text()).trim().split("\n");
-  const images = () => ({ "linux/amd64": join(work, "amd64.tar"), "linux/arm64": join(work, "arm64.tar") });
+  const calls = async () =>
+    (await Bun.file(join(work, "calls.log")).text()).trim().split("\n");
+  const images = () => ({
+    "linux/amd64": join(work, "amd64.tar"),
+    "linux/arm64": join(work, "arm64.tar"),
+  });
 
   beforeAll(async () => {
     work = await mkdtemp(join(tmpdir(), "release-test-"));
@@ -102,15 +119,24 @@ describe("against a registry", () => {
     Object.assign(process.env, {
       PATH: `${join(work, "bin")}:${process.env.PATH}`,
       CALLS: join(work, "calls.log"),
-      RELEASE_CERT_IDENTITY_REGEXP: "^https://github\\.com/zeabur-oss/\\.github/\\.github/workflows/release\\.yml@",
-      RELEASE_SIGNER_WORKFLOW: "zeabur-oss/.github/.github/workflows/release.yml",
+      RELEASE_CERT_IDENTITY_REGEXP:
+        "^https://github\\.com/zeabur-oss/\\.github/\\.github/workflows/release\\.yml@",
+      RELEASE_SIGNER_WORKFLOW:
+        "zeabur-oss/.github/.github/workflows/release.yml",
       RELEASE_SOURCE_REPOSITORY: "zeabur-oss/smoke",
       RELEASE_SOURCE_REF: "refs/tags/v0.0.1",
     });
     const port = 5100 + Math.floor(Math.random() * 800);
     host = `localhost:${port}`;
-    registry = Bun.spawn(["crane", "registry", "serve", "--address", host], { stderr: "ignore" });
-    for (let i = 0; i < 50 && (await $`curl -fs http://${host}/v2/`.nothrow().quiet()).exitCode !== 0; i++)
+    registry = Bun.spawn(["crane", "registry", "serve", "--address", host], {
+      stderr: "ignore",
+    });
+    for (
+      let i = 0;
+      i < 50 &&
+      (await $`curl -fs http://${host}/v2/`.nothrow().quiet()).exitCode !== 0;
+      i++
+    )
       await Bun.sleep(100);
     for (const arch of ["amd64", "arm64"]) {
       await $`printf 'FROM scratch\nCOPY zeabur-oss-release.ts /\n' | docker build -q --platform linux/${arch} --tag release-test:${arch} --file - .`
@@ -122,7 +148,8 @@ describe("against a registry", () => {
     await $`sed -i.bak -e 's/^version: .*/version: 0.0.1/' ${join(work, "smoke", "Chart.yaml")}`;
     await $`helm package ${join(work, "smoke")} --destination ${work}`.quiet();
     await mkdir(join(work, "published"));
-  });
+    // docker build and helm on a cold runner take longer than a test.
+  }, 120_000);
 
   afterAll(async () => {
     registry?.kill();
@@ -132,27 +159,45 @@ describe("against a registry", () => {
 
   test("pushImage pushes by digest and tags only the index", async () => {
     const out = join(work, "published");
-    const index = await pushImage(out, "smoke", `${host}/zeabur-oss/smoke:0.0.1`, images());
+    const index = await pushImage(
+      out,
+      "smoke",
+      `${host}/zeabur-oss/smoke:0.0.1`,
+      images(),
+    );
 
     const entries = await readDigests(join(out, "digests.txt"));
     expect(recorded(entries, "smoke index")).toEqual(index);
     const listed = (await $`crane manifest ${index}`.json()).manifests
-      .map((m: any) => `${m.platform.os}/${m.platform.architecture} ${m.digest}`)
+      .map(
+        (m: any) => `${m.platform.os}/${m.platform.architecture} ${m.digest}`,
+      )
       .sort();
     expect(listed).toEqual([
       `linux/amd64 ${recorded(entries, "smoke linux/amd64").digest}`,
       `linux/arm64 ${recorded(entries, "smoke linux/arm64").digest}`,
     ]);
-    expect((await $`crane ls ${host}/zeabur-oss/smoke`.text()).trim()).toBe("0.0.1");
+    expect((await $`crane ls ${host}/zeabur-oss/smoke`.text()).trim()).toBe(
+      "0.0.1",
+    );
     expect(await Bun.file(join(out, "subjects.json")).json()).toEqual([
       { name: `${host}/zeabur-oss/smoke`, digest: index.digest },
     ]);
-    const signed = (await calls()).filter((c) => c.startsWith("cosign sign --yes"));
-    expect(signed.sort()).toEqual(entries.map((e) => `cosign sign --yes ${e.ref}`).sort());
+    const signed = (await calls()).filter((c) =>
+      c.startsWith("cosign sign --yes"),
+    );
+    expect(signed.sort()).toEqual(
+      entries.map((e) => `cosign sign --yes ${e.ref}`).sort(),
+    );
   });
 
   test("pushImage refuses a version that exists", async () => {
-    const again = pushImage(join(work, "published"), "smoke", `${host}/zeabur-oss/smoke:0.0.1`, images());
+    const again = pushImage(
+      join(work, "published"),
+      "smoke",
+      `${host}/zeabur-oss/smoke:0.0.1`,
+      images(),
+    );
     await expect(again).rejects.toThrow("already exists");
   });
 
@@ -171,13 +216,24 @@ describe("against a registry", () => {
 
   test("verifyImage accepts what was pushed and refuses swapped digests", async () => {
     const digests = join(work, "published", "digests.txt");
-    const index = await verifyImage(digests, "smoke", ["linux/amd64", "linux/arm64"]);
+    const index = await verifyImage(digests, "smoke", [
+      "linux/amd64",
+      "linux/arm64",
+    ]);
     expect(index.repo).toBe(`${host}/zeabur-oss/smoke`);
 
     const swapped = join(work, "swapped.txt");
     const text = await Bun.file(digests).text();
-    await writeFile(swapped, text.replace("linux/amd64", "linux/TMP").replace("linux/arm64", "linux/amd64").replace("linux/TMP", "linux/arm64"));
-    await expect(verifyImage(swapped, "smoke", ["linux/amd64", "linux/arm64"])).rejects.toThrow("the index");
+    await writeFile(
+      swapped,
+      text
+        .replace("linux/amd64", "linux/TMP")
+        .replace("linux/arm64", "linux/amd64")
+        .replace("linux/TMP", "linux/arm64"),
+    );
+    await expect(
+      verifyImage(swapped, "smoke", ["linux/amd64", "linux/arm64"]),
+    ).rejects.toThrow("the index");
   });
 
   test("pushChart pushes, checks and signs; verifyChart reads it back", async () => {
@@ -185,23 +241,34 @@ describe("against a registry", () => {
     const chart = join(work, "smoke-0.0.1.tgz");
     const ref = await pushChart(out, `oci://${host}/zeabur-oss/charts`, chart);
     expect(ref.repo).toBe(`${host}/zeabur-oss/charts/smoke`);
-    expect(recorded(await readDigests(join(out, "digests.txt")), "chart")).toEqual(ref);
+    expect(
+      recorded(await readDigests(join(out, "digests.txt")), "chart"),
+    ).toEqual(ref);
     expect(await calls()).toContain(`cosign sign --yes ${ref}`);
 
     expect(await verifyChart(join(out, "digests.txt"), chart)).toEqual(ref);
     const other = join(work, "other.tgz");
     await writeFile(other, "not the chart");
-    await expect(verifyChart(join(out, "digests.txt"), other)).rejects.toThrow("is not");
+    await expect(verifyChart(join(out, "digests.txt"), other)).rejects.toThrow(
+      "is not",
+    );
   });
 
   test("checksums and verifyAssets cover exactly the assets", async () => {
     const assets = join(work, "assets");
     await mkdir(assets);
-    await cp(join(work, "published", "digests.txt"), join(assets, "digests.txt"));
+    await cp(
+      join(work, "published", "digests.txt"),
+      join(assets, "digests.txt"),
+    );
     await cp(join(work, "smoke-0.0.1.tgz"), join(assets, "smoke-0.0.1.tgz"));
     await checksums(assets);
-    expect((await Bun.file(join(assets, "SHA256SUMS")).text()).split("\n").filter(Boolean).map((l) => l.split(/\s+/)[1]))
-      .toEqual(["digests.txt", "smoke-0.0.1.tgz"]);
+    expect(
+      (await Bun.file(join(assets, "SHA256SUMS")).text())
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => l.split(/\s+/)[1]),
+    ).toEqual(["digests.txt", "smoke-0.0.1.tgz"]);
     await verifyAssets(assets);
 
     await writeFile(join(assets, "extra.txt"), "extra");
@@ -214,9 +281,15 @@ describe("the command", () => {
 
   test("notes prints the section and the docs link", async () => {
     const dir = await mkdtemp(join(tmpdir(), "release-notes-"));
-    await writeFile(join(dir, "CHANGELOG.md"), "# Changelog\n\n## 0.1.1 (2026-10-28)\n\n- One fix.\n");
-    const out = await $`bun ${cli} notes ${join(dir, "CHANGELOG.md")} v0.1.1 --docs https://oss.zeabur.com/docs/builder/`.text();
-    expect(out).toBe("- One fix.\n\nInstall, upgrade and verify: [oss.zeabur.com/docs/builder](https://oss.zeabur.com/docs/builder/)\n");
+    await writeFile(
+      join(dir, "CHANGELOG.md"),
+      "# Changelog\n\n## 0.1.1 (2026-10-28)\n\n- One fix.\n",
+    );
+    const out =
+      await $`bun ${cli} notes ${join(dir, "CHANGELOG.md")} v0.1.1 --docs https://oss.zeabur.com/docs/builder/`.text();
+    expect(out).toBe(
+      "- One fix.\n\nInstall, upgrade and verify: [oss.zeabur.com/docs/builder](https://oss.zeabur.com/docs/builder/)\n",
+    );
     await rm(dir, { recursive: true, force: true });
   });
 
