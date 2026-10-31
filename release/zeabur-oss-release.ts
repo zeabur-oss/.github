@@ -137,14 +137,59 @@ async function chartIs(ref: Ref, chart: string) {
     (l: { mediaType: string }) =>
       l.mediaType === "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
   );
-  if (layers.length !== 1 || layers[0].digest !== (await sha256(chart)))
+  if (
+    layers.length !== 1 ||
+    layers[0].digest !== `sha256:${await sha256(chart)}`
+  )
     fail(`${ref} is not ${chart}`);
 }
 
-async function sha256(file: string): Promise<string> {
+// The SHA-256 of a file, in hex, as sha256sum prints it.
+export async function sha256(file: string): Promise<string> {
   const hasher = new Bun.CryptoHasher("sha256");
   for await (const chunk of Bun.file(file).stream()) hasher.update(chunk);
-  return `sha256:${hasher.digest("hex")}`;
+  return hasher.digest("hex");
+}
+
+// Sets the empty `digest: ""` under the key path of a Helm values file ("proxy", "image") to
+// digest. A text edit, so the comments and blank lines stay; the result is parsed to check it.
+export function pinDigest(
+  values: string,
+  path: string[],
+  digest: string,
+): string {
+  if (!/^sha256:[0-9a-f]{64}$/.test(digest))
+    fail(`${digest} is not a sha256 digest`);
+  const where = [...path, "digest"].join(".");
+  const lines = values.split("\n");
+  // Each key is a direct child of the one before: inside its block, at its children's indentation.
+  let line = -1;
+  let parent = -1;
+  for (const key of [...path, "digest"]) {
+    let found = -1;
+    let child = -1;
+    for (let i = line + 1; i < lines.length; i++) {
+      const indent = lines[i].search(/\S/);
+      if (indent < 0 || lines[i].trimStart().startsWith("#")) continue;
+      if (indent <= parent) break;
+      if (child < 0) child = indent;
+      if (indent === child && lines[i].slice(indent).startsWith(`${key}:`)) {
+        found = i;
+        parent = indent;
+        break;
+      }
+    }
+    if (found < 0) fail(`values.yaml has no ${where}`);
+    line = found;
+  }
+  const m = /^(\s*digest: )""\s*$/.exec(lines[line]);
+  if (!m) fail(`${where} in values.yaml is not empty: ${lines[line].trim()}`);
+  lines[line] = `${m[1]}"${digest}"`;
+  const pinned = lines.join("\n");
+  let node: any = Bun.YAML.parse(pinned);
+  for (const key of path) node = node?.[key];
+  if (node?.digest !== digest) fail(`could not pin ${where} in values.yaml`);
+  return pinned;
 }
 
 // Who must have signed: the shared release workflow, run for this repository at the tag.
@@ -265,25 +310,26 @@ export async function notes(
 }
 
 // The file names a SHA256SUMS lists, whole: sha256sum writes `<sha256>  <name>`.
-export function listedIn(sums: string): string[] {
-  return sums
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const m = /^[0-9a-f]{64} [ *](.+)$/.exec(line);
-      if (!m)
-        fail(`SHA256SUMS has a line that is not <sha256>  <file>: ${line}`);
-      return m[1];
-    });
+// The files of a sha256sum list and their SHA-256s.
+export function sums(list: string): Map<string, string> {
+  const files = new Map<string, string>();
+  for (const line of list.split("\n").filter(Boolean)) {
+    const m = /^([0-9a-f]{64}) [ *](.+)$/.exec(line);
+    if (!m)
+      fail(`a checksum list has a line that is not <sha256>  <file>: ${line}`);
+    if (files.has(m[2])) fail(`a checksum list has ${m[2]} twice`);
+    files.set(m[2], m[1]);
+  }
+  return files;
 }
 
 export async function verifyAssets(dir: string) {
   const id = signer();
   await $`cosign verify-blob ${id.cosign} --bundle ${join(dir, "SHA256SUMS.sigstore.json")} ${join(dir, "SHA256SUMS")}`;
   // SHA256SUMS lists every other asset, and nothing else.
-  const listed = listedIn(
-    await Bun.file(join(dir, "SHA256SUMS")).text(),
-  ).sort();
+  const listed = [
+    ...sums(await Bun.file(join(dir, "SHA256SUMS")).text()).keys(),
+  ].sort();
   const assets = (await readdir(dir))
     .filter((f) => f !== "SHA256SUMS" && f !== "SHA256SUMS.sigstore.json")
     .sort();
