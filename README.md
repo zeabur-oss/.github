@@ -14,21 +14,21 @@ install Nix, cache and upload.
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
 - Inputs of the shared `ci.yml`: `runner`, `fetch-depth` and `rust-cache`.
 
-### `scripts/release.sh`
+### `scripts/release.ts`
 
-One entrypoint per stage, called in the dev shell of the commit being released:
+One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell of the commit being released (so the dev shell has Bun):
 
-| Stage | Arguments | Does |
-|---|---|---|
-| `check` | `<version>` | The version is the manifests' and has a `CHANGELOG.md` section. |
-| `build` | `<version> <os> <arch> <dist>` | Builds one platform into `<dist>` and smokes what it built. |
-| `sign` | `<version> <os> <arch> <dist>` | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
-| `publish` | `<version> <artifacts> <published>` | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed). |
-| `finish` | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer. |
-| `assets` | `<version> <artifacts> <release>` | Writes `<release>/assets/*` with `SHA256SUMS`, and `<release>/notes.md`. |
-| `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft release's assets and their signatures. |
+| Stage     | Arguments                                  | Does                                                                                                                                                        |
+| --------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `check`   | `<version>`                                | The version is the manifests'. The workflow then checks the `CHANGELOG.md` section.                                                                         |
+| `build`   | `<version> <os> <arch> <dist>`             | Builds one platform into `<dist>` and smokes what it built.                                                                                                 |
+| `sign`    | `<version> <os> <arch> <dist>`             | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
+| `publish` | `<version> <artifacts> <published>`        | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed).                    |
+| `finish`  | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer.                                                             |
+| `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes.                                                        |
+| `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first.                                                           |
 
-Inputs of the shared `release.yml`: `name`, `version`, `verify-only`, `platforms` (JSON array of
+Inputs of the shared `release.yml`: `name`, `docs` (the documentation the notes link to), `version`, `platforms` (JSON array of
 `{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
 (default `platforms`), `runner`, `signing-environment` and `telemetry-key`. `build` may leave logs in `$CI_ARTIFACTS`; they
 are uploaded when it fails.
@@ -45,13 +45,14 @@ name. macOS builds of `main` and tags run in it; others build unsigned.
 ### Shared steps
 
 [`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
-signs `SHA256SUMS`, verifies a release and makes the release notes from `CHANGELOG.md`. A
-repository gets it from this flake, pinned in its own `flake.lock`, and calls it from its
-`scripts/release.sh` stages.
+signs `SHA256SUMS`, verifies a release and copies the release notes from `CHANGELOG.md`. A
+repository depends on it as `@zeabur-oss/release` in its `package.json`, pinned in its
+`bun.lock`, and imports it in its `scripts/release.ts` stages; the workflow runs `notes`,
+`checksums` and `verify-assets` itself, from the same package.
 
 ### Unsafe report
 
-`zeabur-oss-unsafe-report <package>...`, from the same flake and pin, lists the shipped
+`zeabur-oss-unsafe-report <package>...`, from this flake, pinned in the caller's `flake.lock`, lists the shipped
 dependencies of those packages that have `unsafe` code or link native code. It writes
 `target/unsafe-report.md` and fails on any that the repository's
 `supply-chain/unsafe-allowlist.toml` does not approve. A Rust repository runs it from its
@@ -88,6 +89,18 @@ gh attestation verify <file> --repo zeabur-oss/<repo> \
 
 The `verify` stage gets these values in `RELEASE_CERT_IDENTITY_REGEXP`, `RELEASE_SIGNER_WORKFLOW`,
 `RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`.
+
+If the `verify` job fails on a draft, fix the check and run it again from a checkout, in the dev
+shell, after `bun install`:
+
+```sh
+export RELEASE_CERT_IDENTITY_REGEXP='^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
+  RELEASE_SIGNER_WORKFLOW=zeabur-oss/.github/.github/workflows/release.yml \
+  RELEASE_SOURCE_REPOSITORY=zeabur-oss/<repo> RELEASE_SOURCE_REF=refs/tags/<version>
+gh release download <version> --repo zeabur-oss/<repo> --dir downloaded
+node_modules/.bin/zeabur-oss-release verify-assets downloaded
+bun scripts/release.ts verify <version> linux arm64 downloaded
+```
 
 ## Runners
 
@@ -128,16 +141,12 @@ jobs:
 name: Release
 on:
   push:
-    tags: ['v[0-9]*'] # the shared workflow checks the rest (SemVer)
+    tags: ["v[0-9]*"] # the shared workflow checks the rest (SemVer)
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to rehearse or verify (v0.1.1); a rehearsal never publishes'
+        description: "Version to rehearse (v0.1.1); a rehearsal never publishes"
         required: true
-      verify_only:
-        description: 'Verify the existing draft release of this version; build and publish nothing'
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
@@ -145,11 +154,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   checks:
-    if: ${{ !inputs.verify_only }}
     uses: ./.github/workflows/ci.yml
   release:
     needs: checks
-    if: ${{ !cancelled() && (needs.checks.result == 'success' || inputs.verify_only) }}
     uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
     permissions:
       contents: write
@@ -159,7 +166,6 @@ jobs:
     with:
       name: Zeabur Example
       version: ${{ inputs.version }}
-      verify-only: ${{ inputs.verify_only == true }}
 ```
 
 `.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate:
@@ -168,7 +174,7 @@ jobs:
 name: Skills
 on:
   schedule:
-    - cron: '0 17 * * 0'
+    - cron: "0 17 * * 0"
   workflow_dispatch:
 permissions:
   contents: read

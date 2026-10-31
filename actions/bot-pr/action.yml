@@ -18,10 +18,10 @@ inputs:
     required: true
   body:
     description: The pull request's body.
-    default: ''
+    default: ""
   add-paths:
     description: The paths to commit, one per line; empty for every change.
-    default: ''
+    default: ""
 outputs:
   pull-request-number:
     description: The pull request's number; empty when nothing changed.

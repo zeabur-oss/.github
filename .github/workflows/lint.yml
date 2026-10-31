@@ -28,27 +28,18 @@ jobs:
 
   release-cli:
     runs-on: ubuntu-26.04-arm
-    services:
-      # A registry without the Referrers API, as GHCR answers, for what docker saves.
-      registry:
-        image: registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373 # 2.8.3
-        ports: ['5000:5000']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
-      - name: Unit tests
-        working-directory: release
-        run: |
-          unformatted=$(nix develop --command gofmt -l .)
-          [[ -z "$unformatted" ]] || { echo "::error::not gofmt'd: $unformatted"; exit 1; }
-          nix develop --command go vet ./...
-          nix develop --command go test -race ./...
-      - name: The package builds (vendorHash matches go.sum)
-        run: nix build .#zeabur-oss-release
-      - name: Push what docker saves, then read it back
-        run: release/smoke.sh
+      - run: nix develop --command bun install --frozen-lockfile
+      - name: Formatted
+        run: nix develop --command bun fmt --check .
+      - name: Type checked
+        run: nix develop --command bun check release/
+      - name: Tests, against a registry in memory with images docker saves
+        run: nix develop --command bun test release/
 
   dco:
     uses: ./.github/workflows/dco.yml

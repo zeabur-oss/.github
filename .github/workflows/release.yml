@@ -1,19 +1,21 @@
 name: Release
 
 # Tag vX.Y.Z or vX.Y.Z-<pre-release> on main: build, smoke, publish by digest, sign, attest, leave a draft release.
-# A maintainer publishes the draft. Manual run: rehearse without publishing; verify-only re-checks
-# a draft. No CI and no cache here: main's required checks already passed.
+# A maintainer publishes the draft. Manual run: rehearse without publishing. No CI and no cache
+# here: main's required checks already passed.
 #
-# Stages, each `scripts/release.sh <stage>` in the caller's dev shell:
-#   check   <version>                                 version matches manifests and CHANGELOG
+# Stages, each `bun scripts/release.ts <stage>` in the caller's dev shell, after `bun install`
+# (the caller's package.json pins @zeabur-oss/release, from release/ here):
+#   check   <version>                                 the version is the manifests'
 #   build   <version> <os> <arch> <dist>              build and smoke one platform
 #   sign    <version> <os> <arch> <dist>              with signing-environment, on macOS:
 #                                                     Developer ID and notarization
 #   publish <version> <artifacts> <published>         push by digest, sign, write subjects.json
 #   finish  <version> <os> <arch> <artifacts> <dist>  what needs the digests, such as installers
-#   assets  <version> <artifacts> <release>           assets/, SHA256SUMS, notes.md
-#   verify  <version> <os> <arch> <downloaded>        check the draft's assets and signatures
-# verify gets the signer from the RELEASE_* env vars; build may leave logs in $CI_ARTIFACTS.
+#   assets  <version> <artifacts> <assets>            copy the release's files into <assets>
+#   verify  <version> <os> <arch> <downloaded>        check the images and charts of the draft
+# The workflow does the rest with the package's zeabur-oss-release command: the CHANGELOG.md section, SHA256SUMS and its signature, the notes, and verifying the assets. verify
+# gets the signer from the RELEASE_* env vars; build may leave logs in $CI_ARTIFACTS.
 on:
   workflow_call:
     inputs:
@@ -21,14 +23,14 @@ on:
         description: The product, the release's title before the version (Zeabur Builder).
         type: string
         required: true
-      version:
-        description: The version to rehearse or verify (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
+      docs:
+        description: The documentation the notes end with a link to (https://oss.zeabur.com/docs/builder/); empty for none.
         type: string
-        default: ''
-      verify-only:
-        description: Verify the existing draft of this version; build and publish nothing.
-        type: boolean
-        default: false
+        default: ""
+      version:
+        description: The version to rehearse (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
+        type: string
+        default: ""
       platforms:
         description: JSON array of {os, arch, runner} to build, smoke and finish.
         type: string
@@ -42,7 +44,7 @@ on:
       finish-platforms:
         description: JSON array of {os, arch, runner} to finish on; empty for the platforms.
         type: string
-        default: ''
+        default: ""
       runner:
         description: The runner of the jobs that are not per platform.
         type: string
@@ -52,13 +54,13 @@ on:
           The environment holding the APPLE_* secrets; macOS builds of main and tags run in it
           and are signed and notarized. Empty for none.
         type: string
-        default: ''
+        default: ""
       telemetry-key:
         description: >-
           A project key that tag builds compile in as ZEABUR_TELEMETRY_KEY, for programs that
           report usage; other builds get none. Empty for none.
         type: string
-        default: ''
+        default: ""
     secrets:
       APPLE_CERTIFICATE_P12:
         description: The Developer ID Application certificate with its key, .p12 in base64.
@@ -91,19 +93,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.verify-only && format('refs/tags/{0}', inputs.version) || github.ref }}
           fetch-depth: 0
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
       - id: version
-        name: The version is the manifests', with a changelog section, on main
+        name: The version is the manifests', with a CHANGELOG.md section, on main
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
-          VERIFY_ONLY: ${{ inputs.verify-only }}
         run: |
-          # check runs zeabur-oss-release version, which refuses anything but SemVer with a v.
-          ./scripts/release.sh check "$VERSION"
-          if [[ "$GITHUB_EVENT_NAME" == push || "$VERIFY_ONLY" == true ]]; then
+          # The manifests take only SemVer; an image tag cannot hold the + of build metadata.
+          [[ "$VERSION" == v* && "$VERSION" != *+* ]] ||
+            { echo "::error::$VERSION is not v and SemVer without build metadata"; exit 1; }
+          nix develop --command bun scripts/release.ts check "$VERSION"
+          nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
             git merge-base --is-ancestor HEAD origin/main ||
               { echo "::error::$VERSION is not on main"; exit 1; }
           fi
@@ -115,7 +119,6 @@ jobs:
   build:
     name: build (${{ matrix.os }}-${{ matrix.arch }})
     needs: prepare
-    if: ${{ !inputs.verify-only }}
     strategy:
       fail-fast: false
       matrix:
@@ -131,6 +134,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
       - name: Build and smoke
         env:
           ZEABUR_TELEMETRY_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && inputs.telemetry-key || '' }}
@@ -138,7 +142,7 @@ jobs:
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
           CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
-        run: ./scripts/release.sh build "$VERSION" "$OS" "$ARCH" dist
+        run: nix develop --command bun scripts/release.ts build "$VERSION" "$OS" "$ARCH" dist
       # A step of its own, so the build never sees the secrets. Without them sign leaves the
       # build as it is.
       - name: Sign and notarize
@@ -152,7 +156,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-        run: ./scripts/release.sh sign "$VERSION" "$OS" "$ARCH" dist
+        run: nix develop --command bun scripts/release.ts sign "$VERSION" "$OS" "$ARCH" dist
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -182,6 +186,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: candidate-*
@@ -192,7 +197,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          ./scripts/release.sh publish "$VERSION" artifacts published
+          nix develop --command bun scripts/release.ts publish "$VERSION" artifacts published
           echo "subjects=$(jq -c . published/subjects.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -234,6 +239,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
@@ -242,7 +248,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
-        run: ./scripts/release.sh finish "$VERSION" "$OS" "$ARCH" artifacts dist
+        run: nix develop --command bun scripts/release.ts finish "$VERSION" "$OS" "$ARCH" artifacts dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: finish-${{ matrix.os }}-${{ matrix.arch }}
@@ -265,16 +271,21 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
-      - name: Make the release assets and their checksums
+      - name: Make the release assets, their signed checksums and the notes
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
+          DOCS: ${{ inputs.docs }}
         run: |
-          ./scripts/release.sh assets "$VERSION" artifacts release
-          test -s release/assets/SHA256SUMS
-          test -s release/notes.md
+          mkdir -p release/assets
+          nix develop --command bun scripts/release.ts assets "$VERSION" artifacts release/assets
+          nix develop --command node_modules/.bin/zeabur-oss-release checksums release/assets
+          docs=()
+          [[ -z "$DOCS" ]] || docs=(--docs "$DOCS")
+          nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$VERSION" "${docs[@]}" >release/notes.md
       - name: Attest the release assets' provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -295,9 +306,8 @@ jobs:
 
   verify:
     name: verify (${{ matrix.os }}-${{ matrix.arch }})
-    if: >-
-      ${{ !cancelled() && needs.prepare.result == 'success' &&
-          (needs.release.result == 'success' || inputs.verify-only) }}
+    # A skipped finish would skip this too without the explicit condition.
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
     needs: [prepare, release]
     strategy:
       fail-fast: false
@@ -309,30 +319,22 @@ jobs:
       contents: write
       attestations: read
     steps:
-      # The tag's checkout gives the dev shell the release was built with.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.verify-only && format('refs/tags/{0}', inputs.version) || github.ref }}
-          persist-credentials: false
-      # verify-only: the commit this run was started from, which may fix the check.
-      - if: inputs.verify-only
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          path: verification
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
       - name: Download the draft's assets and verify them
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
-          SCRIPTS: ${{ inputs.verify-only && 'verification/scripts' || 'scripts' }}
           RELEASE_CERT_IDENTITY_REGEXP: '^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@'
           RELEASE_SIGNER_WORKFLOW: zeabur-oss/.github/.github/workflows/release.yml
           RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
           RELEASE_SOURCE_REF: refs/tags/${{ needs.prepare.outputs.version }}
         run: |
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
-          "./$SCRIPTS/release.sh" verify "$VERSION" "$OS" "$ARCH" downloaded
+          nix develop --command node_modules/.bin/zeabur-oss-release verify-assets downloaded
+          nix develop --command bun scripts/release.ts verify "$VERSION" "$OS" "$ARCH" downloaded
