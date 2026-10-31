@@ -1,0 +1,61 @@
+name: Bot pull request
+description: >-
+  Opens or updates a pull request with the working tree's changes as zeabur-oss-bot, whose
+  pull requests start CI (GITHUB_TOKEN's do not). The commit is signed and signed off by the bot,
+  as the DCO check requires.
+inputs:
+  client-id:
+    description: The bot's client ID (vars.ZEABUR_OSS_BOT_CLIENT_ID).
+    required: true
+  private-key:
+    description: The bot's private key (secrets.ZEABUR_OSS_BOT_PRIVATE_KEY).
+    required: true
+  branch:
+    description: The pull request's branch.
+    required: true
+  title:
+    description: The pull request's title and commit subject, as a Conventional Commit.
+    required: true
+  body:
+    description: The pull request's body.
+    default: ''
+  add-paths:
+    description: The paths to commit, one per line; empty for every change.
+    default: ''
+outputs:
+  pull-request-number:
+    description: The pull request's number; empty when nothing changed.
+    value: ${{ steps.pr.outputs.pull-request-number }}
+runs:
+  using: composite
+  steps:
+    - id: app
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        repositories: ${{ github.event.repository.name }}
+        permission-contents: write
+        permission-pull-requests: write
+    - id: bot
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.app.outputs.token }}
+        APP_SLUG: ${{ steps.app.outputs.app-slug }}
+      run: |
+        id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+        echo "identity=${APP_SLUG}[bot] <${id}+${APP_SLUG}[bot]@users.noreply.github.com>" >> "$GITHUB_OUTPUT"
+    - id: pr
+      uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      with:
+        token: ${{ steps.app.outputs.token }}
+        author: ${{ steps.bot.outputs.identity }}
+        committer: ${{ steps.bot.outputs.identity }}
+        signoff: true
+        sign-commits: true
+        add-paths: ${{ inputs.add-paths }}
+        branch: ${{ inputs.branch }}
+        delete-branch: true
+        commit-message: ${{ inputs.title }}
+        title: ${{ inputs.title }}
+        body: ${{ inputs.body }}

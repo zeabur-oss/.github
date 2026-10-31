@@ -12,9 +12,7 @@ install Nix, cache and upload.
 - `scripts/ci.sh <job>` runs one job. It enters the repository's Nix dev shell itself, so a job
   runs the same on GitHub and on any Linux machine with Nix (and Docker, for cluster jobs).
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
-- Inputs of the shared `ci.yml`: `runner`, `fetch-depth`, `rust-cache`, and `cache-paths` with
-  `cache-key-files` for anything else worth keeping between runs (Go modules, a tool built from
-  source), one cache per job keyed on those files.
+- Inputs of the shared `ci.yml`: `runner`, `fetch-depth` and `rust-cache`.
 
 ### `scripts/release.sh`
 
@@ -31,8 +29,8 @@ One entrypoint per stage, called in the dev shell of the commit being released:
 | `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft release's assets and their signatures. |
 
 Inputs of the shared `release.yml`: `name`, `version`, `verify-only`, `platforms` (JSON array of
-`{os, arch, runner}`), `finish` with `finish-platforms`, `verify-platforms` (both default to
-`platforms`), `runner` and `signing-environment`. `build` may leave logs in `$CI_ARTIFACTS`; they
+`{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
+(default `platforms`), `runner`, `signing-environment` and `telemetry-key`. `build` may leave logs in `$CI_ARTIFACTS`; they
 are uploaded when it fails.
 
 `signing-environment` names an environment whose deployment branches are `main` and `v*` tags,
@@ -66,6 +64,13 @@ name, again from its `main`, and opens `update/skills` as zeabur-oss-bot. To use
 copy its directory from `zeabur-oss/skills/skills/` into `.claude/skills/`. The repository needs
 the bot installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
 
+### Bot pull requests
+
+`actions/bot-pr` opens or updates a pull request with the working tree's changes as
+zeabur-oss-bot, whose pull requests start CI. Pass `client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}`,
+`private-key`, `branch`, `title` and optionally `body` and `add-paths`; the job needs no write
+permission of its own.
+
 ### Signatures
 
 Keyless signatures and attestations name the workflow that ran, which is this repository's
@@ -83,6 +88,12 @@ gh attestation verify <file> --repo zeabur-oss/<repo> \
 
 The `verify` stage gets these values in `RELEASE_CERT_IDENTITY_REGEXP`, `RELEASE_SIGNER_WORKFLOW`,
 `RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`.
+
+## Runners
+
+Jobs run on the newest Ubuntu, `ubuntu-26.04-arm`. A job that only runs a short script without Nix
+(a check of the pull request, a summary) runs on `ubuntu-slim`. `ubuntu-26.04` and macOS are only
+for work that needs that platform, such as an amd64 build or e2e run.
 
 ## Calling the workflows
 
