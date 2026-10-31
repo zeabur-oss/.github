@@ -2,7 +2,7 @@
   description = "zeabur-oss shared CI and release";
 
   inputs = {
-    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1"; # unstable Nixpkgs
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     # Bun's own release binaries; Nixpkgs is behind, and bun fmt and bun check are newer.
     nix-bun = {
       url = "github:zeabur-oss/nix-bun";
@@ -35,8 +35,11 @@
         );
     in
     {
-      devShells = forAll (pkgs: {
-        default = pkgs.mkShell {
+      devShells = forAll (pkgs: rec {
+        # What every zeabur-oss repository's shell has: the release tools that @zeabur-oss/release
+        # calls, and the linters of the shared CI. A repository's shell adds its own with
+        # `inputsFrom = [ inputs.oss.devShells.${system}.base ];`.
+        base = pkgs.mkShell {
           packages = with pkgs; [
             bun
             crane
@@ -46,8 +49,10 @@
             actionlint
             shellcheck
             jq
+            nixfmt
           ];
         };
+        default = base;
       });
     };
 }

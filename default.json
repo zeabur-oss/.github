@@ -22,10 +22,13 @@
       "groupName": "github actions"
     },
     {
-      "description": "The shared workflows and actions: every repository moves to the same commit together, with no release age to wait for.",
-      "matchManagers": ["github-actions"],
-      "matchPackageNames": ["zeabur-oss/.github"],
-      "groupName": "zeabur-oss shared workflows",
+      "description": "Every pin of zeabur-oss/.github moves to the same commit in one pull request, with no release age to wait for: the shared workflows and actions, @zeabur-oss/release in package.json and the flake input in flake.lock.",
+      "matchPackageNames": [
+        "zeabur-oss/.github",
+        "@zeabur-oss/release",
+        "https://github.com/zeabur-oss/.github"
+      ],
+      "groupName": "zeabur-oss/.github",
       "minimumReleaseAge": null
     }
   ]
