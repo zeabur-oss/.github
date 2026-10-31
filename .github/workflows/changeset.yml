@@ -1,0 +1,37 @@
+name: Changeset
+
+# A pull request whose title is feat, fix or perf, or marks a breaking change with !, adds a
+# change file in .changeset/ for the changelog, or carries the label `changelog: none`. The level
+# in the file is the change's effect on users, which the reviewer checks; it is not derived from
+# the title. Every change file the pull request adds or changes is checked against knope.toml.
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: The runner of the job that runs the check in the caller's dev shell.
+        type: string
+        default: ubuntu-26.04-arm
+
+permissions:
+  contents: read
+
+jobs:
+  changeset:
+    name: changeset
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          TITLE: ${{ github.event.pull_request.title }}
+          NONE: "${{ contains(github.event.pull_request.labels.*.name, 'changelog: none') }}"
+        run: |
+          args=("$BASE" "$HEAD" "$TITLE")
+          [[ "$NONE" != true ]] || args+=(--none)
+          nix develop --command node_modules/.bin/zeabur-oss-release changeset "${args[@]}"

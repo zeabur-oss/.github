@@ -37,7 +37,7 @@
     {
       devShells = forAll (pkgs: rec {
         # What every zeabur-oss repository's shell has: the release tools that @zeabur-oss/release
-        # calls, and the linters of the shared CI. A repository's shell adds its own with
+        # calls, knope for change files and release pull requests, and the linters of the shared CI. A repository's shell adds its own with
         # `inputsFrom = [ inputs.oss.devShells.${system}.base ];`.
         base = pkgs.mkShell {
           packages = with pkgs; [
@@ -50,6 +50,7 @@
             shellcheck
             jq
             nixfmt
+            knope
           ];
         };
         default = base;
