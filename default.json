@@ -20,6 +20,13 @@
     {
       "matchManagers": ["github-actions"],
       "groupName": "github actions"
+    },
+    {
+      "description": "The shared workflows and actions: every repository moves to the same commit together, with no release age to wait for.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["zeabur-oss/.github"],
+      "groupName": "zeabur-oss shared workflows",
+      "minimumReleaseAge": null
     }
   ]
 }
