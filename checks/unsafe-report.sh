@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Lists every shipped dependency that contains `unsafe` code or links native code, and fails if one
-# is not approved in the repository's supply-chain/unsafe-allowlist.toml. Writes a Markdown report to
-# target/unsafe-report.md. Policy: CONTRIBUTING.md, "Dependencies".
+# is not approved in the repository's supply-chain/unsafe-allowlist.toml, or if the allowlist has an
+# entry the shipped graph doesn't need. Writes a Markdown report to target/unsafe-report.md. Policy:
+# CONTRIBUTING.md, "Dependencies".
 #
 # The `unsafe` count is the number of non-comment source lines containing the `unsafe` keyword in
 # the crate's .rs files. It is a review signal, not an audit. The dependency graph comes from the
@@ -35,6 +36,16 @@ approval() { # $1 = crate name, $2 = kind
     END { flush() }' "$allowlist"
 }
 
+# Every allowlist entry, as `<name> <kind>`.
+entries() {
+  awk '
+    function flush() { if (name != "") print name, kind }
+    /^\[\[crate\]\]/ { flush(); name = ""; kind = "" }
+    /^name *=/ { v = $0; gsub(/.*= *"|"$/, "", v); name = v }
+    /^kind *=/ { v = $0; gsub(/.*= *"|"$/, "", v); kind = v }
+    END { flush() }' "$allowlist"
+}
+
 # Download sources first; the scan reads them from the Cargo home.
 cargo fetch --locked --quiet
 
@@ -55,7 +66,8 @@ packages=$(jq -r --arg shipped "$shipped" '
   | [.name, .version, (.manifest_path | sub("/Cargo.toml$"; "")), (if .links then "yes" else "no" end)]
   | @tsv' <<<"$metadata")
 
-status=0
+missing=0
+needed=""
 {
   echo "# Dependency unsafe report"
   echo
@@ -68,14 +80,36 @@ status=0
       grep -cvE '^[[:space:]]*(//|\*)' || true)
     if [[ "$used" == 0 && "$native" == no ]]; then continue; fi
     ok=yes
-    if [[ "$used" != 0 && -z "$(approval "$name" unsafe)" ]]; then ok=NO; status=1; fi
-    if [[ "$native" == yes && -z "$(approval "$name" native)" ]]; then ok=NO; status=1; fi
+    if [[ "$used" != 0 ]]; then
+      needed+="$name unsafe"$'\n'
+      if [[ -z "$(approval "$name" unsafe)" ]]; then ok=NO; missing=1; fi
+    fi
+    if [[ "$native" == yes ]]; then
+      needed+="$name native"$'\n'
+      if [[ -z "$(approval "$name" native)" ]]; then ok=NO; missing=1; fi
+    fi
     echo "| $name | $version | $used | $native | $ok |"
   done <<<"$packages"
+
+  unneeded=$(comm -23 <(entries | sort -u) <(printf '%s' "$needed" | sort -u))
+  if [[ -n "$unneeded" ]]; then
+    echo
+    echo "## Entries the shipped graph doesn't need"
+    echo
+    echo "| crate | kind |"
+    echo "|---|---|"
+    while read -r name kind; do echo "| $name | $kind |"; done <<<"$unneeded"
+  fi
 } >"$report"
 
 cat "$report"
-if [[ $status -ne 0 ]]; then
+status=0
+if [[ $missing -ne 0 ]]; then
   echo "error: dependencies above marked NO need a maintainer's approval in $allowlist" >&2
+  status=1
+fi
+if [[ -n "$unneeded" ]]; then
+  echo "error: remove the entries the shipped graph doesn't need from $allowlist" >&2
+  status=1
 fi
 exit $status

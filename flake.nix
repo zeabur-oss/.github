@@ -56,6 +56,9 @@
             actionlint
             shellcheck
             jq
+            # checks/unsafe-report.test.ts
+            cargo
+            rustc
           ];
         };
       });

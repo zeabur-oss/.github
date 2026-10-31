@@ -37,9 +37,11 @@ jobs:
       - name: Formatted
         run: nix develop --command bun fmt --check .
       - name: Type checked
-        run: nix develop --command bun check release/
+        run: nix develop --command bun check release/ checks/
       - name: Tests, against a registry in memory with images docker saves
         run: nix develop --command bun test release/
+      - name: The unsafe report on a workspace of its own
+        run: nix develop --command bun test --timeout 60000 checks/
 
   dco:
     uses: ./.github/workflows/dco.yml

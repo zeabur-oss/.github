@@ -26,5 +26,5 @@ only when its pin moves:
 
 `Lint` runs actionlint (with shellcheck) on every workflow here, and the tests of
 [`zeabur-oss-release`](release/README.md); run them locally with `nix develop`, then `actionlint`,
-`bun install`, `bun fmt --check .`, `bun check release/` and `bun test release/` (with Docker). Without the dev shell, actionlint alone is
+`bun install`, `bun fmt --check .`, `bun check release/ checks/`, `bun test release/` (with Docker) and `bun test --timeout 60000 checks/`. Without the dev shell, actionlint alone is
 `nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint`.
