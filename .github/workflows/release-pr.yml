@@ -1,0 +1,140 @@
+name: Release pull request
+
+# Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
+# version, and zeabur-oss-bot opens the pull request `chore(release): vX.Y.Z` with them. On main,
+# once that pull request is merged: zeabur-oss-bot tags the commit vX.Y.Z, which starts the
+# caller's release. Tags pushed with GITHUB_TOKEN start no workflow, so the bot pushes it.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version to release instead of the one the change files give (0.2.0); empty for theirs.
+        type: string
+        default: ''
+      runner:
+        description: The runner of the job that runs knope in the caller's dev shell.
+        type: string
+        default: ubuntu-26.04-arm
+    secrets:
+      private-key:
+        description: The private key of zeabur-oss-bot (ZEABUR_OSS_BOT_PRIVATE_KEY).
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - id: knope
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${VERSION#v}"
+          if [[ -n "$VERSION" && ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::$VERSION is not X.Y.Z; a pre-release is still prepared by hand"
+            exit 1
+          fi
+          args=()
+          [[ -z "$VERSION" ]] || args=(--override-version "$VERSION")
+          nix develop --command knope prepare-release "${args[@]}"
+          version=$(awk '/^## [0-9]/ { print $2; exit }' CHANGELOG.md)
+          if [[ -n "$VERSION" && "$version" != "$VERSION" ]]; then
+            echo "::error::knope wrote ## $version to CHANGELOG.md, not $VERSION"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version is already tagged"
+            exit 1
+          fi
+          # A pre-release of this version left its own section, written by hand; knope's replaces it.
+          awk -v v="$version" '
+            /^## / { skip = 0; if ($2 == v || $2 == "[" v "]") { if (seen++) skip = 1 } }
+            !skip
+          ' CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md"
+          cp "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo 'notes<<EOF'
+            awk '/^## [0-9]/ { n++; next } n == 1' CHANGELOG.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.private-key }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      # The commit's author must match its sign-off (the DCO check).
+      - id: bot
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          echo "identity=${APP_SLUG}[bot] <${id}+${APP_SLUG}[bot]@users.noreply.github.com>" >> "$GITHUB_OUTPUT"
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app.outputs.token }}
+          author: ${{ steps.bot.outputs.identity }}
+          committer: ${{ steps.bot.outputs.identity }}
+          signoff: true
+          sign-commits: true
+          branch: release/next
+          delete-branch: true
+          commit-message: "chore(release): v${{ steps.knope.outputs.version }}"
+          title: "chore(release): v${{ steps.knope.outputs.version }}"
+          body: |
+            Merging this tags the merge commit v${{ steps.knope.outputs.version }}, which starts the release.
+            Edit CHANGELOG.md on this branch first if the section should read differently.
+
+            ${{ steps.knope.outputs.notes }}
+
+  tag:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: release
+        run: |
+          subject=$(git log -1 --format=%s)
+          if [[ ! "$subject" =~ ^chore\(release\):\ v([0-9]+\.[0-9]+\.[0-9]+)(\ \(#[0-9]+\))?$ ]]; then
+            echo "Not a release pull request: $subject"
+            exit 0
+          fi
+          version=${BASH_REMATCH[1]}
+          if ! grep -qE "^## (\[$version\]|$version)( |$)" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section ## $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - id: app
+        if: steps.release.outputs.version != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.private-key }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+      - if: steps.release.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: v${{ steps.release.outputs.version }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --silent 2>/dev/null; then
+            echo "::error::$TAG already exists"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
+          echo "Tagged $GITHUB_SHA $TAG"

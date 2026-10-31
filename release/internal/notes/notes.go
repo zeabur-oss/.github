@@ -1,5 +1,5 @@
-// Package notes takes a version's section out of a Keep a Changelog file and turns it into the
-// body of a GitHub release.
+// Package notes takes a version's section out of CHANGELOG.md and turns it into the body of a
+// GitHub release.
 //
 // CHANGELOG.md is wrapped at a fixed width, as Markdown allows: a line break inside a paragraph is
 // a soft break, rendered as a space. A release body is not rendered that way; GitHub shows every
@@ -30,20 +30,21 @@ var (
 type ErrNoSection struct{ Version string }
 
 func (e ErrNoSection) Error() string {
-	return fmt.Sprintf("CHANGELOG.md has no section ## [%s] with text", e.Version)
+	return fmt.Sprintf("CHANGELOG.md has no section ## %s with text", e.Version)
 }
 
-// Section returns the text of the section headed `## [X.Y.Z]` (optionally followed by ` - <date>`
-// or other text after a space), without its heading, with soft line breaks joined. The version may
-// be given with or without its v. A pre-release has no section of its own: v0.1.2-beta.1 reads
-// ## [0.1.2].
+// Section returns the text of the section headed `## X.Y.Z`, as knope writes it, or `## [X.Y.Z]`,
+// as Keep a Changelog does, optionally followed by other text after a space (` (2026-10-31)`,
+// ` - 2026-10-31`). The heading is left out and soft line breaks are joined. The version may be
+// given with or without its v. A pre-release has no section of its own: v0.1.2-beta.1 reads
+// ## 0.1.2.
 func Section(changelog io.Reader, v string) (string, error) {
 	parsed, err := version.Parse("v" + strings.TrimPrefix(v, "v"))
 	if err != nil {
 		return "", err
 	}
 	plain := parsed.Normal
-	want := "## [" + plain + "]"
+	headings := []string{"## " + plain, "## [" + plain + "]"}
 
 	var lines []string
 	found := false
@@ -53,8 +54,10 @@ func Section(changelog io.Reader, v string) (string, error) {
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")
 		if !found {
-			if line == want || strings.HasPrefix(line, want+" ") {
-				found = true
+			for _, h := range headings {
+				if line == h || strings.HasPrefix(line, h+" ") {
+					found = true
+				}
 			}
 			continue
 		}

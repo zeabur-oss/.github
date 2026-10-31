@@ -1,6 +1,6 @@
 # zeabur-oss/.github
 
-The CI, DCO, release and skills workflows every zeabur-oss repository calls, and the shared Renovate
+The CI, DCO, changeset, release and skills workflows every zeabur-oss repository calls, and the shared Renovate
 preset. A repository keeps what is its own in two scripts; the workflows here only check out,
 install Nix, cache and upload.
 
@@ -66,6 +66,62 @@ name, again from its `main`, and opens `update/skills` as zeabur-oss-bot. To use
 copy its directory from `zeabur-oss/skills/skills/` into `.claude/skills/`. The repository needs
 the bot installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
 
+### Changes and release pull requests
+
+Each user-facing change brings its changelog entry: a change file in `.changeset/`, written by the
+pull request's author and checked by its reviewer. `knope document-change` asks for the level and
+summary and writes one:
+
+```md
+---
+default: minor
+---
+
+# Popups keep focus when their trigger is swapped
+
+Optional details, as many paragraphs as needed.
+```
+
+The level is the change's effect on users (`major`, `minor`, `patch`; a `major` before 1.0 bumps
+the minor), not the commit type: a breaking change to CI is `ci!:` with no change file, or one at
+`patch`. `changeset.yml` fails a pull request whose title is `feat`, `fix` or `perf`, or has `!`,
+when it adds no change file and has no label `changelog: none`, and fails any change file it adds
+that knope would not read.
+
+`release-pr.yml`, run by hand, runs `knope prepare-release` in the caller's dev shell: the change
+files become the next `## X.Y.Z (date)` section of `CHANGELOG.md`, the version in every versioned
+file follows, and the change files are deleted. zeabur-oss-bot opens `release/next` with that as
+`chore(release): vX.Y.Z`; `version` sets the version instead. Merged, the same workflow on `main`
+tags the commit `vX.Y.Z` as the bot, which starts `release.yml`. Commit titles never reach the
+changelog: knope reads only the change files.
+
+The repository needs `knope` in its dev shell and a `knope.toml`:
+
+```toml
+[package]
+versioned_files = ["package.json"] # every manifest with the version: Cargo.toml, Cargo.lock, ...
+changelog = "CHANGELOG.md"
+
+[changes]
+ignore_conventional_commits = true
+
+[[workflows]]
+name = "prepare-release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows]]
+name = "document-change"
+
+[[workflows.steps]]
+type = "CreateChangeFile"
+```
+
+It also needs the label `changelog: none`, the bot installed with `ZEABUR_OSS_BOT_PRIVATE_KEY`
+and `ZEABUR_OSS_BOT_CLIENT_ID` visible to it, and the bot allowed to create `v*` tags by any tag
+ruleset.
+
 ### Signatures
 
 Keyless signatures and attestations name the workflow that ran, which is this repository's
@@ -109,6 +165,47 @@ jobs:
       rust-cache: true
   dco:
     uses: zeabur-oss/.github/.github/workflows/dco.yml@<sha> # main
+```
+
+`.github/workflows/changeset.yml`, apart from CI so that a label or a new title checks again
+without rerunning it:
+
+```yaml
+name: Changeset
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+jobs:
+  changeset:
+    uses: zeabur-oss/.github/.github/workflows/changeset.yml@<sha> # main
+```
+
+`.github/workflows/release-pr.yml`:
+
+```yaml
+name: Release pull request
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version instead of the one the change files give (0.2.0); empty for theirs'
+        default: ''
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: release-pr-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release-pr:
+    uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # main
+    with:
+      version: ${{ inputs.version }}
+    secrets:
+      private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
 `.github/workflows/release.yml`:
@@ -173,15 +270,21 @@ jobs:
 
 ## Releasing
 
-1. Bump the version in every manifest, add its `CHANGELOG.md` section, merge to `main`.
-2. Optionally rehearse: run the repository's Release workflow by hand with the version.
-3. Push the tag `vX.Y.Z` from `main`. The workflow leaves a draft release.
+1. Run the repository's Release pull request workflow, with a version only to override the
+   change files'.
+2. Read `chore(release): vX.Y.Z`, edit its `CHANGELOG.md` section on the branch if needed, and
+   merge it. Optionally rehearse first: run the Release workflow by hand with the version.
+3. zeabur-oss-bot tags the merge commit; the Release workflow leaves a draft release.
 4. Check the draft and publish it. Releases are immutable once published.
+
+A pre-release is still prepared by hand: its manifests carry the full version, it has the section
+of its normal version, and a maintainer pushes its tag from `main`. The change files stay; the
+release pull request of that version later replaces the hand-written section with knope's.
 
 A tag is a [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html) version with a `v` and no build
 metadata. `vX.Y.Z`, `v0.*` included, is a normal release. A tag with a pre-release part
 (`v0.1.2-beta.1`, `v1.0.0-rc.1`) is a GitHub pre-release, never marked latest. A pre-release
-shares the `CHANGELOG.md` section of its normal version (`## [0.1.2]`), is tagged on `main` like
+shares the `CHANGELOG.md` section of its normal version (`## 0.1.2`), is tagged on `main` like
 any other release, and its manifests carry the full version (`0.1.2-beta.1`).
 
 ## Contributing

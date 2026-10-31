@@ -1,0 +1,50 @@
+name: Changeset
+
+# A pull request whose title is feat, fix or perf, or marks a breaking change with !, adds a
+# change file in .changeset/ for the changelog, or carries the label `changelog: none`. The level
+# in the file is the change's effect on users, which the reviewer checks; it is not derived from
+# the title. Every change file the pull request adds is checked for knope's format.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  changeset:
+    name: changeset
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          TITLE: ${{ github.event.pull_request.title }}
+          NONE: "${{ contains(github.event.pull_request.labels.*.name, 'changelog: none') }}"
+        run: |
+          status=0
+          mapfile -t files < <(git diff --name-only --diff-filter=AM "$BASE...$HEAD" -- '.changeset/*.md')
+          for file in "${files[@]}"; do
+            # Front matter of `<package>: major|minor|patch` lines, then a `# ` summary.
+            if ! awk '
+              NR == 1 { if ($0 != "---") exit 1; next }
+              !done && $0 == "---" { done = 1; next }
+              !done { if ($0 !~ /^"?[^":]+"?: (major|minor|patch)$/) exit 1; levels++; next }
+              /^# [^ ]/ { summary = 1 }
+              END { exit !(done && levels && summary) }
+            ' "$file"; then
+              echo "::error file=$file::a change file starts with --- lines of '<package>: major|minor|patch', then '# <summary>'"
+              status=1
+            fi
+          done
+          if [[ "$TITLE" =~ ^(feat|fix|perf)(\(|!|:) || "$TITLE" =~ ^[a-z]+(\([^\)]*\))?!: ]]; then
+            if [[ ${#files[@]} -eq 0 && "$NONE" != true ]]; then
+              echo "::error::'$TITLE' needs a change file in .changeset/ (knope document-change), or the label 'changelog: none' when users see no difference"
+              status=1
+            fi
+          fi
+          exit $status

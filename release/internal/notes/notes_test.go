@@ -91,6 +91,14 @@ func TestSectionVersions(t *testing.T) {
 	}
 }
 
+func TestSectionKnopeHeading(t *testing.T) {
+	text := "## 0.1.2 (2026-10-31)\n\n### Fixes\n\n- One.\n\n## 0.1.1 (2026-10-28)\n\nOlder.\n"
+	got, err := Section(strings.NewReader(text), "v0.1.2-rc.1")
+	if err != nil || got != "### Fixes\n\n- One.\n" {
+		t.Errorf("got %q, %v", got, err)
+	}
+}
+
 func TestSectionMissing(t *testing.T) {
 	for _, v := range []string{"v0.2.0", "v0.1", "0.1.1.1", "v0.1.1+build"} {
 		_, err := Section(strings.NewReader(changelog), v)
@@ -98,14 +106,16 @@ func TestSectionMissing(t *testing.T) {
 			t.Errorf("%s: no error", v)
 		}
 	}
-	// A heading for a longer version is not this version's: [0.1.10] is not [0.1.1].
-	_, err := Section(strings.NewReader("## [0.1.10]\n\ntext\n"), "v0.1.1")
+	// A heading for a longer version is not this version's: 0.1.10 is not 0.1.1.
 	var missing ErrNoSection
-	if !errors.As(err, &missing) {
-		t.Errorf("0.1.10 for 0.1.1: %v", err)
+	for _, text := range []string{"## [0.1.10]\n\ntext\n", "## 0.1.10 (2026-10-31)\n\ntext\n"} {
+		_, err := Section(strings.NewReader(text), "v0.1.1")
+		if !errors.As(err, &missing) {
+			t.Errorf("0.1.10 for 0.1.1: %v", err)
+		}
 	}
 	// A heading with nothing under it is no section.
-	_, err = Section(strings.NewReader("## [0.1.1]\n\n## [0.1.0]\n\ntext\n"), "v0.1.1")
+	_, err := Section(strings.NewReader("## [0.1.1]\n\n## [0.1.0]\n\ntext\n"), "v0.1.1")
 	if !errors.As(err, &missing) {
 		t.Errorf("empty section: %v", err)
 	}
