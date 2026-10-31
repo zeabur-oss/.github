@@ -174,7 +174,7 @@ describe("against a registry", () => {
     await rm(work, { recursive: true, force: true });
   });
 
-  test("pushImage pushes by digest and tags only the index", async () => {
+  test("pushImage pushes by digest, attests each image and tags only the index", async () => {
     const out = join(work, "published");
     const index = await pushImage(
       out,
@@ -197,9 +197,10 @@ describe("against a registry", () => {
     expect((await $`crane ls ${host}/zeabur-oss/smoke`.text()).trim()).toBe(
       "0.0.1",
     );
-    expect(await Bun.file(join(out, "subjects.json")).json()).toEqual([
-      { name: `${host}/zeabur-oss/smoke`, digest: index.digest },
-    ]);
+    // Each platform image and the index have their own provenance.
+    expect(await Bun.file(join(out, "subjects.json")).json()).toEqual(
+      entries.map((e) => ({ name: e.ref.repo, digest: e.ref.digest })),
+    );
     const signed = (await calls()).filter((c) =>
       c.startsWith("cosign sign --yes"),
     );
@@ -238,6 +239,11 @@ describe("against a registry", () => {
       "linux/arm64",
     ]);
     expect(index.repo).toBe(`${host}/zeabur-oss/smoke`);
+    const attested = (await calls()).filter((c) =>
+      c.startsWith("gh attestation verify"),
+    );
+    for (const e of await readDigests(digests))
+      expect(attested.some((c) => c.includes(`oci://${e.ref} `))).toBe(true);
 
     const swapped = join(work, "swapped.txt");
     const text = await Bun.file(digests).text();
