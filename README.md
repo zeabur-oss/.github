@@ -52,11 +52,13 @@ repository depends on it as `@zeabur-oss/release` in its `package.json`, pinned 
 
 ### Unsafe report
 
-`zeabur-oss-unsafe-report <package>...`, from this flake, pinned in the caller's `flake.lock`, lists the shipped
+`zeabur-oss-unsafe-report <package>...`, the second command of `@zeabur-oss/release`, lists the shipped
 dependencies of those packages that have `unsafe` code or link native code. It writes
 `target/unsafe-report.md` and fails on any that the repository's
-`supply-chain/unsafe-allowlist.toml` does not approve. A Rust repository runs it from its
-`scripts/ci.sh`; Cargo comes from the caller's dev shell.
+`supply-chain/unsafe-allowlist.toml` does not approve, and on any entry there whose crate and kind
+the shipped graph doesn't need: a crate that comes back needs a new approval. A Rust repository runs
+`node_modules/.bin/zeabur-oss-unsafe-report` from its `scripts/ci.sh`; Cargo comes from the caller's
+dev shell.
 
 ### Skills
 
