@@ -123,8 +123,13 @@ async function chartIs(ref: Ref, chart: string) {
   const layers = manifest.layers.filter(
     (l: { mediaType: string }) => l.mediaType === "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
   );
-  const digest = `sha256:${new Bun.CryptoHasher("sha256").update(await Bun.file(chart).bytes()).digest("hex")}`;
-  if (layers.length !== 1 || layers[0].digest !== digest) fail(`${ref} is not ${chart}`);
+  if (layers.length !== 1 || layers[0].digest !== (await sha256(chart))) fail(`${ref} is not ${chart}`);
+}
+
+async function sha256(file: string): Promise<string> {
+  const hasher = new Bun.CryptoHasher("sha256");
+  for await (const chunk of Bun.file(file).stream()) hasher.update(chunk);
+  return `sha256:${hasher.digest("hex")}`;
 }
 
 // Who must have signed: the shared release workflow, run for this repository at the tag.
