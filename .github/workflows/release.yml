@@ -1,8 +1,8 @@
 name: Release
 
 # Tag vX.Y.Z or vX.Y.Z-<pre-release> on main: build, smoke, publish by digest, sign, attest, leave a draft release.
-# A maintainer publishes the draft. Manual run: rehearse without publishing; verify-only re-checks
-# a draft. No CI and no cache here: main's required checks already passed.
+# A maintainer publishes the draft. Manual run: rehearse without publishing. No CI and no cache
+# here: main's required checks already passed.
 #
 # Stages, each `bun scripts/release.ts <stage>` in the caller's dev shell, after `bun install`
 # (the caller's package.json pins @zeabur-oss/release, from release/ here):
@@ -28,13 +28,9 @@ on:
         type: string
         default: ''
       version:
-        description: The version to rehearse or verify (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
+        description: The version to rehearse (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
         type: string
         default: ''
-      verify-only:
-        description: Verify the existing draft of this version; build and publish nothing.
-        type: boolean
-        default: false
       platforms:
         description: JSON array of {os, arch, runner} to build, smoke and finish.
         type: string
@@ -97,7 +93,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.verify-only && format('refs/tags/{0}', inputs.version) || github.ref }}
           fetch-depth: 0
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
@@ -106,14 +101,13 @@ jobs:
         name: The version is the manifests', with a CHANGELOG.md section, on main
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
-          VERIFY_ONLY: ${{ inputs.verify-only }}
         run: |
           # The manifests take only SemVer; an image tag cannot hold the + of build metadata.
           [[ "$VERSION" == v* && "$VERSION" != *+* ]] ||
             { echo "::error::$VERSION is not v and SemVer without build metadata"; exit 1; }
           nix develop --command bun scripts/release.ts check "$VERSION"
           nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
-          if [[ "$GITHUB_EVENT_NAME" == push || "$VERIFY_ONLY" == true ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
             git merge-base --is-ancestor HEAD origin/main ||
               { echo "::error::$VERSION is not on main"; exit 1; }
           fi
@@ -125,7 +119,6 @@ jobs:
   build:
     name: build (${{ matrix.os }}-${{ matrix.arch }})
     needs: prepare
-    if: ${{ !inputs.verify-only }}
     strategy:
       fail-fast: false
       matrix:
@@ -313,9 +306,6 @@ jobs:
 
   verify:
     name: verify (${{ matrix.os }}-${{ matrix.arch }})
-    if: >-
-      ${{ !cancelled() && needs.prepare.result == 'success' &&
-          (needs.release.result == 'success' || inputs.verify-only) }}
     needs: [prepare, release]
     strategy:
       fail-fast: false
@@ -327,34 +317,22 @@ jobs:
       contents: write
       attestations: read
     steps:
-      # The tag's checkout gives the dev shell the release was built with.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.verify-only && format('refs/tags/{0}', inputs.version) || github.ref }}
-          persist-credentials: false
-      # verify-only: the commit this run was started from, which may fix the check.
-      - if: inputs.verify-only
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          path: verification
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
-      - env:
-          ROOT: ${{ inputs.verify-only && 'verification' || '.' }}
-        run: nix develop --command bun install --cwd "$ROOT" --frozen-lockfile
+      - run: nix develop --command bun install --frozen-lockfile
       - name: Download the draft's assets and verify them
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
-          ROOT: ${{ inputs.verify-only && 'verification' || '.' }}
           RELEASE_CERT_IDENTITY_REGEXP: '^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@'
           RELEASE_SIGNER_WORKFLOW: zeabur-oss/.github/.github/workflows/release.yml
           RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
           RELEASE_SOURCE_REF: refs/tags/${{ needs.prepare.outputs.version }}
         run: |
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
-          nix develop --command "$ROOT/node_modules/.bin/zeabur-oss-release" verify-assets downloaded
-          nix develop --command bun "$ROOT/scripts/release.ts" verify "$VERSION" "$OS" "$ARCH" downloaded
+          nix develop --command node_modules/.bin/zeabur-oss-release verify-assets downloaded
+          nix develop --command bun scripts/release.ts verify "$VERSION" "$OS" "$ARCH" downloaded

@@ -28,7 +28,7 @@ One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell
 | `assets` | `<version> <artifacts> <assets>` | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes. |
 | `verify` | `<version> <os> <arch> <downloaded>` | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first. |
 
-Inputs of the shared `release.yml`: `name`, `docs` (the documentation the notes link to), `version`, `verify-only`, `platforms` (JSON array of
+Inputs of the shared `release.yml`: `name`, `docs` (the documentation the notes link to), `version`, `platforms` (JSON array of
 `{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
 (default `platforms`), `runner`, `signing-environment` and `telemetry-key`. `build` may leave logs in `$CI_ARTIFACTS`; they
 are uploaded when it fails.
@@ -90,6 +90,18 @@ gh attestation verify <file> --repo zeabur-oss/<repo> \
 The `verify` stage gets these values in `RELEASE_CERT_IDENTITY_REGEXP`, `RELEASE_SIGNER_WORKFLOW`,
 `RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`.
 
+If the `verify` job fails on a draft, fix the check and run it again from a checkout, in the dev
+shell, after `bun install`:
+
+```sh
+export RELEASE_CERT_IDENTITY_REGEXP='^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
+  RELEASE_SIGNER_WORKFLOW=zeabur-oss/.github/.github/workflows/release.yml \
+  RELEASE_SOURCE_REPOSITORY=zeabur-oss/<repo> RELEASE_SOURCE_REF=refs/tags/<version>
+gh release download <version> --repo zeabur-oss/<repo> --dir downloaded
+node_modules/.bin/zeabur-oss-release verify-assets downloaded
+bun scripts/release.ts verify <version> linux arm64 downloaded
+```
+
 ## Runners
 
 Jobs run on the newest Ubuntu, `ubuntu-26.04-arm`. A job that only runs a short script without Nix
@@ -133,12 +145,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to rehearse or verify (v0.1.1); a rehearsal never publishes'
+        description: 'Version to rehearse (v0.1.1); a rehearsal never publishes'
         required: true
-      verify_only:
-        description: 'Verify the existing draft release of this version; build and publish nothing'
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
@@ -146,11 +154,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   checks:
-    if: ${{ !inputs.verify_only }}
     uses: ./.github/workflows/ci.yml
   release:
     needs: checks
-    if: ${{ !cancelled() && (needs.checks.result == 'success' || inputs.verify_only) }}
     uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
     permissions:
       contents: write
@@ -160,7 +166,6 @@ jobs:
     with:
       name: Zeabur Example
       version: ${{ inputs.version }}
-      verify-only: ${{ inputs.verify_only == true }}
 ```
 
 `.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate:
