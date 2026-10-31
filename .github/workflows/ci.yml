@@ -92,8 +92,7 @@ jobs:
           # Uploaded after the job, pass or fail.
           CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
         run: ./scripts/ci.sh "$JOB"
-      # act rejects upload-artifact v7.
-      - if: always() && !env.ACT
+      - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-${{ matrix.job }}
