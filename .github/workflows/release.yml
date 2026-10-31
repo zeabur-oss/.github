@@ -207,7 +207,7 @@ jobs:
           retention-days: 7
 
   attest:
-    name: attest (${{ matrix.name }})
+    name: attest (${{ matrix.name }}@${{ matrix.digest }})
     needs: publish
     if: needs.publish.outputs.subjects != '[]'
     strategy:

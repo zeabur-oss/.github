@@ -204,7 +204,7 @@ export async function pushImage(
   for (const { want, tar, ref } of images) {
     await $`crane push ${tar} ${ref}`.quiet();
     await $`cosign sign --yes ${ref}`;
-    await published.record(kind(label, want), ref);
+    await published.record(kind(label, want), ref, true);
     manifests.push("--manifest", ref.toString());
   }
   const index = Ref.parse(
@@ -318,9 +318,10 @@ export async function verifyImage(
   );
   if (got.sort().join(", ") !== want.sort().join(", "))
     fail(`the index ${index} holds ${got.join(", ")}, not ${want.join(", ")}`);
-  for (const ref of [index, ...want.map((w) => index.at(w.split(" ")[1]))])
+  for (const ref of [index, ...want.map((w) => index.at(w.split(" ")[1]))]) {
     await $`cosign verify ${id.cosign} ${ref}`.quiet();
-  await $`gh attestation verify oci://${index} ${id.gh}`;
+    await $`gh attestation verify oci://${ref} ${id.gh}`;
+  }
   console.log(`verified ${index}`);
   return index;
 }
