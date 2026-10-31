@@ -63,7 +63,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           {
             echo 'notes<<EOF'
-            awk '/^## [0-9]/ { n++; next } n == 1' CHANGELOG.md
+            awk '/^## / { n++; next } n == 1' CHANGELOG.md
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
       - id: app
