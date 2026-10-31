@@ -166,7 +166,7 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: ./scripts/release.sh sign "$VERSION" "$OS" "$ARCH" dist
-      - if: failure() && !env.ACT
+      - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-build-${{ matrix.os }}-${{ matrix.arch }}
