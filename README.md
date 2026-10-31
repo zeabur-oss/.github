@@ -89,6 +89,12 @@ gh attestation verify <file> --repo zeabur-oss/<repo> \
 The `verify` stage gets these values in `RELEASE_CERT_IDENTITY_REGEXP`, `RELEASE_SIGNER_WORKFLOW`,
 `RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`.
 
+## Runners
+
+Jobs run on the newest Ubuntu, `ubuntu-26.04-arm`. A job that only runs a short script without Nix
+(a check of the pull request, a summary) runs on `ubuntu-slim`. `ubuntu-26.04` and macOS are only
+for work that needs that platform, such as an amd64 build or e2e run.
+
 ## Calling the workflows
 
 Pin this repository by commit; Renovate updates the pins.
