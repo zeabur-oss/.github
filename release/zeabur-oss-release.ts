@@ -1,5 +1,5 @@
 // The steps of a release that every zeabur-oss repository does the same way, on crane, helm,
-// cosign and gh. A repository's scripts/release.sh calls it for these and keeps the rest.
+// cosign and gh. A repository's scripts/release.ts calls it for these and keeps the rest.
 //
 // push-* append to <out>/digests.txt and <out>/subjects.json. digests.txt has one line per image,
 // index or chart: its kind (`<label> <os>/<arch>`, `<label> index` or `chart`; an empty label is

@@ -3,7 +3,7 @@
 The steps of a release that every zeabur-oss repository does the same way: push images and charts
 by digest, sign, write and sign `SHA256SUMS`, copy a `CHANGELOG.md` section into the release notes,
 and verify a release as a user would. It is one TypeScript file run by Bun, and each step is a
-call to crane, helm, cosign or gh. A repository's `scripts/release.sh` keeps what is its own (what
+call to crane, helm, cosign or gh. A repository's `scripts/release.ts` keeps what is its own (what
 to build, how to smoke it, which assets exist) and calls this command for the rest. The shared
 `release.yml` runs `notes`, `checksums` and `verify-assets` itself.
 

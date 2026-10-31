@@ -14,9 +14,9 @@ install Nix, cache and upload.
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
 - Inputs of the shared `ci.yml`: `runner`, `fetch-depth` and `rust-cache`.
 
-### `scripts/release.sh`
+### `scripts/release.ts`
 
-One entrypoint per stage, called in the dev shell of the commit being released:
+One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell of the commit being released (so the dev shell has Bun):
 
 | Stage | Arguments | Does |
 |---|---|---|
@@ -47,7 +47,7 @@ name. macOS builds of `main` and tags run in it; others build unsigned.
 [`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
 signs `SHA256SUMS`, verifies a release and copies the release notes from `CHANGELOG.md`. A
 repository gets it from this flake, pinned in its own `flake.lock`, and calls it from its
-`scripts/release.sh` stages; the workflow runs `notes`, `checksums` and `verify-assets` itself.
+`scripts/release.ts` stages; the workflow runs `notes`, `checksums` and `verify-assets` itself.
 
 ### Unsafe report
 

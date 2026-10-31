@@ -21,19 +21,23 @@
       #   packages = [ oss-release.packages.${system}.zeabur-oss-release ];
       # crane, cosign, gh and helm come with it: it pushes, signs and verifies through them.
       packages = forAll (pkgs: rec {
-        zeabur-oss-release = pkgs.writeShellApplication {
-          name = "zeabur-oss-release";
-          runtimeInputs = with pkgs; [
-            bun
-            crane
-            cosign
-            gh
-            kubernetes-helm
-            coreutils
-            gnutar
-          ];
-          text = ''exec bun ${./release/zeabur-oss-release.ts} "$@"'';
-        };
+        # The tools go after the caller's PATH, as a fallback: the tests put stand-ins first.
+        zeabur-oss-release = pkgs.writeShellScriptBin "zeabur-oss-release" ''
+          export PATH="$PATH:${
+            pkgs.lib.makeBinPath (
+              with pkgs;
+              [
+                crane
+                cosign
+                gh
+                kubernetes-helm
+                coreutils
+                gnutar
+              ]
+            )
+          }"
+          exec ${pkgs.lib.getExe pkgs.bun} ${./release/zeabur-oss-release.ts} "$@"
+        '';
         # Run from a Rust repository's scripts/ci.sh. Cargo is the caller's: the report reads the
         # graph with the repository's pinned toolchain.
         zeabur-oss-unsafe-report = pkgs.writeShellApplication {

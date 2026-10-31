@@ -4,7 +4,7 @@ name: Release
 # A maintainer publishes the draft. Manual run: rehearse without publishing; verify-only re-checks
 # a draft. No CI and no cache here: main's required checks already passed.
 #
-# Stages, each `scripts/release.sh <stage>` in the caller's dev shell:
+# Stages, each `bun scripts/release.ts <stage>` in the caller's dev shell:
 #   check   <version>                                 the version is the manifests'
 #   build   <version> <os> <arch> <dist>              build and smoke one platform
 #   sign    <version> <os> <arch> <dist>              with signing-environment, on macOS:
@@ -110,7 +110,7 @@ jobs:
           # The manifests take only SemVer; an image tag cannot hold the + of build metadata.
           [[ "$VERSION" == v* && "$VERSION" != *+* ]] ||
             { echo "::error::$VERSION is not v and SemVer without build metadata"; exit 1; }
-          ./scripts/release.sh check "$VERSION"
+          nix develop --command bun scripts/release.ts check "$VERSION"
           nix develop --command zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
           if [[ "$GITHUB_EVENT_NAME" == push || "$VERIFY_ONLY" == true ]]; then
             git merge-base --is-ancestor HEAD origin/main ||
@@ -147,7 +147,7 @@ jobs:
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
           CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
-        run: ./scripts/release.sh build "$VERSION" "$OS" "$ARCH" dist
+        run: nix develop --command bun scripts/release.ts build "$VERSION" "$OS" "$ARCH" dist
       # A step of its own, so the build never sees the secrets. Without them sign leaves the
       # build as it is.
       - name: Sign and notarize
@@ -161,7 +161,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-        run: ./scripts/release.sh sign "$VERSION" "$OS" "$ARCH" dist
+        run: nix develop --command bun scripts/release.ts sign "$VERSION" "$OS" "$ARCH" dist
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -201,7 +201,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          ./scripts/release.sh publish "$VERSION" artifacts published
+          nix develop --command bun scripts/release.ts publish "$VERSION" artifacts published
           echo "subjects=$(jq -c . published/subjects.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -251,7 +251,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
-        run: ./scripts/release.sh finish "$VERSION" "$OS" "$ARCH" artifacts dist
+        run: nix develop --command bun scripts/release.ts finish "$VERSION" "$OS" "$ARCH" artifacts dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: finish-${{ matrix.os }}-${{ matrix.arch }}
@@ -283,7 +283,7 @@ jobs:
           DOCS: ${{ inputs.docs }}
         run: |
           mkdir -p release/assets
-          ./scripts/release.sh assets "$VERSION" artifacts release/assets
+          nix develop --command bun scripts/release.ts assets "$VERSION" artifacts release/assets
           nix develop --command zeabur-oss-release checksums release/assets
           docs=()
           [[ -z "$DOCS" ]] || docs=("$DOCS")
@@ -349,4 +349,4 @@ jobs:
         run: |
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
           nix develop --command zeabur-oss-release verify-assets downloaded
-          "./$SCRIPTS/release.sh" verify "$VERSION" "$OS" "$ARCH" downloaded
+          nix develop --command bun "$SCRIPTS/release.ts" verify "$VERSION" "$OS" "$ARCH" downloaded
