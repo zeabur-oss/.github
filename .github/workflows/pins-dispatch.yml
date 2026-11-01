@@ -1,0 +1,34 @@
+name: Pins dispatch
+
+# After each push to main, asks every repository that calls this one to move its pins of it (its
+# Pins workflow, which calls pins.yml). A new caller is added to `repositories`.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: pins-dispatch
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-slim
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
+          repositories: builder,catalog,design-system,identity,skills,website,zeabur
+          permission-contents: write
+      - env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          gh api --paginate /installation/repositories --jq '.repositories[].name' \
+            | while read -r repo; do
+                gh api --silent "repos/$OWNER/$repo/dispatches" -f event_type=zeabur-oss-github
+                echo "$repo"
+              done
