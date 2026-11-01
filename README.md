@@ -232,7 +232,7 @@ jobs:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
-`.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate:
+`.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate's lock file maintenance:
 
 ```yaml
 name: Skills

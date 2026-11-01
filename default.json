@@ -7,7 +7,6 @@
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "Asia/Taipei",
-  "schedule": ["* 0-5 * * 1"],
   "labels": ["dependencies"],
   "commitBody": "Signed-off-by: renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>",
   "minimumReleaseAge": "7 days",
