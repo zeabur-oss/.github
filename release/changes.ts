@@ -9,23 +9,37 @@ function fail(message: string): never {
   throw new Failure(message);
 }
 
-const levels = new Set(["major", "minor", "patch"]);
+const levels = ["major", "minor", "patch"];
 
-// knope.toml's packages: `default` for a single [package], else each [packages.<name>].
-export function packages(knopeToml: string): string[] {
+type Package = { extra_changelog_sections?: { types?: string[] }[] };
+
+// knope.toml's packages and the change types each takes: major, minor, patch and the types of its
+// extra_changelog_sections (a `security` type for a `### Security` section). A single [package] is
+// `default`, else each [packages.<name>].
+export function packages(knopeToml: string): Record<string, string[]> {
   const config = Bun.TOML.parse(knopeToml) as {
-    package?: unknown;
-    packages?: Record<string, unknown>;
+    package?: Package;
+    packages?: Record<string, Package>;
   };
-  if (config.package) return ["default"];
-  return Object.keys(config.packages ?? {});
+  const named = config.package
+    ? { default: config.package }
+    : (config.packages ?? {});
+  return Object.fromEntries(
+    Object.entries(named).map(([name, pkg]) => [
+      name,
+      [
+        ...levels,
+        ...(pkg.extra_changelog_sections ?? []).flatMap((s) => s.types ?? []),
+      ],
+    ]),
+  );
 }
 
 // What is wrong with a change file, or undefined. knope skips a file it cannot read, or a package
 // it does not know, without an error, so the check is stricter than knope.
 export function changeFileProblem(
   text: string,
-  known: string[],
+  known: Record<string, string[]>,
 ): string | undefined {
   const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return "it starts with front matter between --- lines";
@@ -36,14 +50,15 @@ export function changeFileProblem(
     return "its front matter is not YAML";
   }
   if (typeof front !== "object" || front === null || Array.isArray(front))
-    return "its front matter is `<package>: major|minor|patch` lines";
+    return "its front matter is `<package>: <change type>` lines";
   const entries = Object.entries(front);
   if (entries.length === 0) return "its front matter names no package";
   for (const [name, level] of entries) {
-    if (!known.includes(name))
-      return `${name} is not a package in knope.toml (${known.join(", ")})`;
-    if (typeof level !== "string" || !levels.has(level))
-      return `${name}: ${level} is not major, minor or patch`;
+    const types = known[name];
+    if (!types)
+      return `${name} is not a package in knope.toml (${Object.keys(known).join(", ")})`;
+    if (typeof level !== "string" || !types.includes(level))
+      return `${name}: ${level} is not one of ${types.join(", ")}`;
   }
   const summary = match[2].split("\n").find((l) => l.trim() !== "");
   if (!summary?.startsWith("# ") || summary.trim() === "#")
