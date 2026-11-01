@@ -103,7 +103,7 @@ is the commit for the rest), each `uses:` under `.github`, and `@zeabur-oss/rele
 `package.json` with `bun install`. Renovate leaves these pins alone. A new caller adds the Pins
 workflow below and its name to `repositories`. This repository needs
 `ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to it, and each caller needs
-them as for Skills.
+them as for Skills. The bot needs Workflows write, since most pins are under `.github/workflows`.
 
 ### Signatures
 
