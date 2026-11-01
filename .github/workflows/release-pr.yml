@@ -1,0 +1,106 @@
+name: Release pull request
+
+# Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
+# version (knope.toml's prepare-release workflow, which may run the caller's own steps), the
+# caller's `bun scripts/release.ts check` confirms every manifest has it, and zeabur-oss-bot opens
+# `chore(release): vX.Y.Z` from release/next. With a pre-release label, knope writes
+# vX.Y.Z-<label>.N with every change since the last normal release and keeps the change files for
+# it. On main, once that pull request is merged, zeabur-oss-bot tags the commit, which starts the
+# caller's release; a tag pushed with GITHUB_TOKEN would start no workflow.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version to release instead of the one the change files give (v0.2.0); empty for theirs.
+        type: string
+        default: ""
+      prerelease:
+        description: The pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release.
+        type: string
+        default: ""
+      check:
+        description: Run `bun scripts/release.ts check <version>` on what knope wrote.
+        type: boolean
+        default: true
+      runner:
+        description: The runner of the jobs, which run in the caller's dev shell.
+        type: string
+        default: ubuntu-26.04-arm
+    secrets:
+      private-key:
+        description: The private key of zeabur-oss-bot (ZEABUR_OSS_BOT_PRIVATE_KEY).
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
+      - id: knope
+        env:
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          tag=$(nix develop --command node_modules/.bin/zeabur-oss-release prepare-release --version="$VERSION" --prerelease="$PRERELEASE")
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - if: inputs.check
+        env:
+          TAG: ${{ steps.knope.outputs.tag }}
+        run: nix develop --command bun scripts/release.ts check "$TAG"
+      - id: notes
+        env:
+          TAG: ${{ steps.knope.outputs.tag }}
+        run: |
+          {
+            echo 'body<<EOF'
+            echo "Merging this tags the merge commit $TAG, which starts the release. Edit CHANGELOG.md on this branch first if the section should read differently."
+            echo
+            nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$TAG"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - uses: zeabur-oss/.github/actions/bot-pr@bc2fba94d807c947f554f3b75be5623d86473067 # main
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.private-key }}
+          branch: release/next
+          title: "chore(release): ${{ steps.knope.outputs.tag }}"
+          body: ${{ steps.notes.outputs.body }}
+
+  tag:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'chore(release): v')
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - run: nix develop --command bun install --frozen-lockfile
+      - id: release
+        run: |
+          subject=$(git log -1 --format=%s)
+          tag=$(nix develop --command node_modules/.bin/zeabur-oss-release release-of "$subject")
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - id: app
+        if: steps.release.outputs.tag != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.private-key }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+      - if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent

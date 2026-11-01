@@ -1,6 +1,6 @@
 # zeabur-oss/.github
 
-The CI, DCO, release and skills workflows every zeabur-oss repository calls, and the shared Renovate
+The CI, DCO, changeset, release pull request, release and skills workflows every zeabur-oss repository calls, and the shared Renovate
 preset. A repository keeps what is its own in two scripts; the workflows here only check out,
 install Nix, cache and upload.
 
@@ -59,6 +59,23 @@ dependencies of those packages that have `unsafe` code or link native code. It w
 the shipped graph doesn't need: a crate that comes back needs a new approval. A Rust repository runs
 `node_modules/.bin/zeabur-oss-unsafe-report` from its `scripts/ci.sh`; Cargo comes from the caller's
 dev shell.
+
+### Change files and release pull requests
+
+A repository has a `knope.toml` with a `prepare-release` workflow: its `PrepareRelease` step turns
+the change files in `.changeset/` into the next `## X.Y.Z (YYYY-MM-DD)` section of `CHANGELOG.md`
+and sets the version in the file `versioned_files` names; a `Command` step with
+`variables = { "$version" = "Version" }` may set it in the other manifests. `changeset.yml` checks
+every pull request: a `feat`, `fix` or `perf` title, or any with `!`, needs a change file or the
+label `changelog: none`, and each change file must name a package of `knope.toml` with `major`,
+`minor` or `patch` and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
+`bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` from
+`release/next` as zeabur-oss-bot; its inputs are `version`, `prerelease` (a label such as `rc`),
+`check` and `runner`. On `main`, the merged release pull request is tagged by the bot, whose tag
+starts the repository's release. Both run `zeabur-oss-release` from the caller's `bun.lock`.
+
+The repository needs the label `changelog: none`, and a tag ruleset that lets zeabur-oss-bot create
+`v*` tags while nobody may move or delete them.
 
 ### Skills
 
@@ -170,6 +187,50 @@ jobs:
       version: ${{ inputs.version }}
 ```
 
+`.github/workflows/changeset.yml`:
+
+```yaml
+name: Changeset
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+jobs:
+  changeset:
+    uses: zeabur-oss/.github/.github/workflows/changeset.yml@<sha> # main
+```
+
+`.github/workflows/release-pr.yml`:
+
+```yaml
+name: Release pull request
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version instead of the one the change files give (v0.2.0); empty for theirs"
+        default: ""
+      prerelease:
+        description: "Pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release"
+        default: ""
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: release-pr-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release-pr:
+    uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # main
+    with:
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+    secrets:
+      private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
+```
+
 `.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate:
 
 ```yaml
@@ -192,16 +253,20 @@ jobs:
 
 ## Releasing
 
-1. Bump the version in every manifest, add its `CHANGELOG.md` section, merge to `main`.
-2. Optionally rehearse: run the repository's Release workflow by hand with the version.
-3. Push the tag `vX.Y.Z` from `main`. The workflow leaves a draft release.
-4. Check the draft and publish it. Releases are immutable once published.
+1. Every pull request that users notice adds a change file (`knope document-change`).
+2. Run the repository's Release pull request workflow, with `prerelease: rc` for a release
+   candidate. Check the pull request it opens; edit `CHANGELOG.md` on its branch if needed.
+3. Optionally rehearse: run the repository's Release workflow by hand with the version.
+4. Merge the release pull request. zeabur-oss-bot tags the merge commit, and the tag's workflow
+   leaves a draft release.
+5. Check the draft and publish it. Releases are immutable once published.
 
 A tag is a [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html) version with a `v` and no build
 metadata. `vX.Y.Z`, `v0.*` included, is a normal release. A tag with a pre-release part
-(`v0.1.2-beta.1`, `v1.0.0-rc.1`) is a GitHub pre-release, never marked latest. A pre-release
-shares the `CHANGELOG.md` section of its normal version (`## [0.1.2]`), is tagged on `main` like
-any other release, and its manifests carry the full version (`0.1.2-beta.1`).
+(`v0.1.2-rc.0`) is a GitHub pre-release, never marked latest. knope gives a pre-release its own
+`CHANGELOG.md` section with every change since the last normal release and keeps the change files,
+so the normal release lists them all again. Before 1.0, knope makes a `major` change a minor
+release and a `minor` change a patch.
 
 ## Contributing
 

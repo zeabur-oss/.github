@@ -85,6 +85,15 @@ zeabur-oss-release checksums release/assets     # SHA256SUMS of every asset, sig
 zeabur-oss-release verify-assets downloaded     # the signature, the sums, each attestation
 ```
 
+The changeset and release pull request workflows run the rest, from `changes.ts`, in the
+repository's root:
+
+```sh
+zeabur-oss-release changeset "$BASE" "$HEAD" "feat: a title" [--none]   # change files and title
+zeabur-oss-release prepare-release [--version v0.2.0] [--prerelease rc]  # knope; prints the tag
+zeabur-oss-release release-of "chore(release): v0.1.2 (#13)"            # the tag, or nothing
+```
+
 ## What it holds to
 
 - **A digest names everything; the version tag comes last.** Platform images are pushed by
@@ -120,6 +129,7 @@ chart  ghcr.io/zeabur-oss/charts/zeabur-builder@sha256:...
 
 ## Tests
 
-`bun test release/` in the dev shell, with Docker. It pushes images that `docker image save`
+`bun test release/` in the dev shell, with Docker. `changes.test.ts` needs no Docker: it runs knope
+in a scratch repository. It pushes images that `docker image save`
 wrote, and a chart, to a registry in memory (`crane registry serve`), and reads them back. cosign
 and gh are replaced by stand-ins that log their arguments.
