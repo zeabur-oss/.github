@@ -89,7 +89,8 @@ the bot installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_I
 
 `actions/bot-pr` opens or updates a pull request with the working tree's changes as
 zeabur-oss-bot, whose pull requests start CI. Pass `client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}`,
-`private-key`, `branch`, `title` and optionally `body` and `add-paths`; the job needs no write
+`private-key`, `branch`, `title` and optionally `body`, `add-paths` and `workflows: "true"` when the
+changes touch `.github/workflows` (the bot's Workflows write permission); the job needs no write
 permission of its own.
 
 ### Signatures
