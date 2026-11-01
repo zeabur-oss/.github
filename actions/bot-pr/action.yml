@@ -22,6 +22,11 @@ inputs:
   add-paths:
     description: The paths to commit, one per line; empty for every change.
     default: ""
+  workflows:
+    description: >-
+      "true" when the changes touch .github/workflows, which needs the bot's Workflows write
+      permission.
+    default: "false"
 outputs:
   pull-request-number:
     description: The pull request's number; empty when nothing changed.
@@ -37,6 +42,7 @@ runs:
         repositories: ${{ github.event.repository.name }}
         permission-contents: write
         permission-pull-requests: write
+        permission-workflows: ${{ inputs.workflows == 'true' && 'write' || '' }}
     - id: bot
       shell: bash
       env:
