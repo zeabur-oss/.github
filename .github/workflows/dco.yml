@@ -1,7 +1,8 @@
 name: DCO
 
 # Every commit of a pull request carries `Signed-off-by:` with its author's name and email
-# (git commit -s). Bots sign off too: Renovate does with the commitBody of the shared preset.
+# (git commit -s). Bots sign off too: Renovate does with the commitBody of the shared preset, and
+# Dependabot always signs off as `dependabot[bot] <support@github.com>`.
 on:
   workflow_call:
 
@@ -25,6 +26,9 @@ jobs:
           status=0
           for sha in $(git rev-list --no-merges "$BASE..$HEAD"); do
             author=$(git log -1 --format='%an <%ae>' "$sha")
+            if [ "$author" = "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>" ]; then
+              author="dependabot[bot] <support@github.com>"
+            fi
             if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -qxF "$author"; then
               echo "::error::commit $sha has no 'Signed-off-by: $author' (git commit -s)"
               status=1
