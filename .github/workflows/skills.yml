@@ -30,7 +30,7 @@ jobs:
             cp -R "$source/skills/$name" "$dir"
           done
           echo "sha=$(git -C "$source" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: zeabur-oss/.github/actions/bot-pr@e9404e7156d76bad0877ae7ac6c805aac93c5900 # main
+      - uses: zeabur-oss/.github/actions/bot-pr@3d106187b96a11dcc2b1c3024c95400a074de1a1 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
