@@ -1,0 +1,53 @@
+name: Pins
+
+# Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main and opens
+# one pull request as zeabur-oss-bot (actions/bot-pr): the flake input in flake.lock, each `uses:`
+# under .github and @zeabur-oss/release in package.json and bun.lock. The flake input is updated
+# first and its locked revision is the commit for the rest.
+on:
+  workflow_call:
+    secrets:
+      private-key:
+        description: The private key of zeabur-oss-bot (ZEABUR_OSS_BOT_PRIVATE_KEY).
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  pins:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+      - id: pin
+        run: |
+          input=""
+          if [[ -f flake.lock ]]; then
+            input=$(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
+              | select((.value | type) == "string")
+              | select($n[.value].original.owner == "zeabur-oss" and $n[.value].original.repo == ".github")
+              | .key' flake.lock)
+          fi
+          if [[ -n "$input" ]]; then
+            nix flake update "$input"
+            sha=$(jq -r --arg node "$(jq -r --arg i "$input" '.nodes.root.inputs[$i]' flake.lock)" '.nodes[$node].locked.rev' flake.lock)
+          else
+            sha=$(git ls-remote https://github.com/zeabur-oss/.github refs/heads/main | cut -f1)
+          fi
+          grep -rlE 'zeabur-oss/\.github/[^@[:space:]]+@[0-9a-f]{40}' .github \
+            | xargs -r sed -i -E "s#(zeabur-oss/\.github/[^@[:space:]]+)@[0-9a-f]{40}#\1@${sha}#g"
+          if [[ -f package.json ]] && grep -qE 'github:zeabur-oss/\.github#[0-9a-f]{40}' package.json; then
+            sed -i -E "s#github:zeabur-oss/\.github\#[0-9a-f]{40}#github:zeabur-oss/.github\#${sha}#" package.json
+            nix develop --command bun install
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - uses: zeabur-oss/.github/actions/bot-pr@3d106187b96a11dcc2b1c3024c95400a074de1a1 # main
+        with:
+          client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.private-key }}
+          branch: update/zeabur-oss-github
+          title: "chore(deps): update zeabur-oss/.github"
+          body: Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}.

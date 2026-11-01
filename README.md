@@ -93,6 +93,18 @@ zeabur-oss-bot, whose pull requests start CI. Pass `client-id: ${{ vars.ZEABUR_O
 changes touch `.github/workflows` (the bot's Workflows write permission); the job needs no write
 permission of its own.
 
+### Pins
+
+After each push to `main`, `pins-dispatch.yml` sends the `repository_dispatch` event
+`zeabur-oss-github` to every repository listed in its `repositories`. A repository's Pins
+workflow then calls `pins.yml`, which moves every pin of this repository to one commit and opens
+`update/zeabur-oss-github` as zeabur-oss-bot: the flake input in `flake.lock` (its locked revision
+is the commit for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in
+`package.json` with `bun install`. Renovate leaves these pins alone. A new caller adds the Pins
+workflow below and its name to `repositories`. This repository needs
+`ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to it, and each caller needs
+them as for Skills.
+
 ### Signatures
 
 Keyless signatures and attestations name the workflow that ran, which is this repository's
@@ -131,7 +143,7 @@ for work that needs that platform, such as an amd64 build or e2e run.
 
 ## Calling the workflows
 
-Pin this repository by commit; Renovate updates the pins.
+Pin this repository by commit; the Pins workflow updates the pins.
 
 `.github/workflows/ci.yml`:
 
@@ -246,6 +258,23 @@ permissions:
 jobs:
   skills:
     uses: zeabur-oss/.github/.github/workflows/skills.yml@<sha> # main
+    secrets:
+      private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
+```
+
+`.github/workflows/pins.yml`:
+
+```yaml
+name: Pins
+on:
+  repository_dispatch:
+    types: [zeabur-oss-github]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pins:
+    uses: zeabur-oss/.github/.github/workflows/pins.yml@<sha> # main
     secrets:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
