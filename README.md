@@ -68,7 +68,8 @@ and sets the version in the file `versioned_files` names; a `Command` step with
 `variables = { "$version" = "Version" }` may set it in the other manifests. `changeset.yml` checks
 every pull request: a `feat`, `fix` or `perf` title, or any with `!`, needs a change file or the
 label `changelog: none`, and each change file must name a package of `knope.toml` with `major`,
-`minor` or `patch` and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
+`minor`, `patch` or a type of the package's `extra_changelog_sections` (such as `security` for a
+`### Security` section, which knope releases as a patch) and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
 `bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` from
 `release/next` as zeabur-oss-bot; its inputs are `version`, `prerelease` (a label such as `rc`),
 `check` and `runner`. On `main`, the merged release pull request is tagged by the bot, whose tag

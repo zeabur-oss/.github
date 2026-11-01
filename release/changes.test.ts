@@ -16,21 +16,28 @@ import { Failure } from "./zeabur-oss-release";
 
 describe("packages", () => {
   test("a single [package] is default", () => {
-    expect(packages('[package]\nchangelog = "CHANGELOG.md"\n')).toEqual([
-      "default",
-    ]);
+    expect(packages('[package]\nchangelog = "CHANGELOG.md"\n')).toEqual({
+      default: ["major", "minor", "patch"],
+    });
+  });
+  test("extra_changelog_sections add their types", () => {
+    expect(
+      packages(
+        '[package]\nextra_changelog_sections = [{ name = "Security", types = ["security"] }]\n',
+      ).default,
+    ).toContain("security");
   });
   test("[packages.<name>] are named", () => {
     expect(
       packages(
         '[packages.ui]\nchangelog = "a"\n[packages."zeabur-cli"]\nchangelog = "b"\n',
       ),
-    ).toEqual(["ui", "zeabur-cli"]);
+    ).toContainAllKeys(["ui", "zeabur-cli"]);
   });
 });
 
 describe("changeFileProblem", () => {
-  const known = ["default"];
+  const known = { default: ["major", "minor", "patch", "security"] };
   test("a well-formed file passes", () => {
     expect(
       changeFileProblem(
@@ -39,10 +46,15 @@ describe("changeFileProblem", () => {
       ),
     ).toBeUndefined();
   });
+  test("a type of an extra changelog section passes", () => {
+    expect(
+      changeFileProblem("---\ndefault: security\n---\n\n# A hole\n", known),
+    ).toBeUndefined();
+  });
   test.each([
     ["no front matter", "# Summary\n"],
     ["an unknown package", "---\nui: patch\n---\n\n# Summary\n"],
-    ["an unknown level", "---\ndefault: breaking\n---\n\n# Summary\n"],
+    ["an unknown type", "---\ndefault: breaking\n---\n\n# Summary\n"],
     ["no summary heading", "---\ndefault: patch\n---\n\nSummary\n"],
     ["an empty heading", "---\ndefault: patch\n---\n\n#\n"],
     ["empty front matter", "---\n\n---\n\n# Summary\n"],
