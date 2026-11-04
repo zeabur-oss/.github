@@ -1,8 +1,9 @@
 name: CI
 
 # Runs the jobs of a repository's scripts/ci/jobs, each as `scripts/ci.sh <job>`, plus zizmor. A
-# pull request and a push run the `fast` tier; the merge queue, a schedule and a manual run take
-# every job. Each job's runner, fetch depth and Rust cache come from its row.
+# pull request and a branch push run the `fast` tier; the merge queue, a tag, a schedule and a
+# manual run take every job. Each job's runner, fetch depth, Rust cache and skip-if-only patterns
+# come from its row.
 on:
   workflow_call:
 
@@ -22,14 +23,20 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: scripts
-      # --matrix runs without the dev shell.
+      # A pull request and the merge queue compare their trees with the base, so a job whose
+      # skip-if-only patterns cover every changed file stays out. --matrix runs without the dev shell.
       - id: list
         env:
-          TIER: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'fast' || 'all' }}
+          TIER: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')) && 'fast' || 'all' }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
-          matrix=$(./scripts/ci.sh --matrix "$TIER")
-          [[ "$matrix" != "[]" ]] || { echo "::error::scripts/ci.sh --matrix $TIER printed no jobs"; exit 1; }
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          changed=""
+          if [[ -n "$BASE" ]]; then
+            git fetch --quiet --depth=1 --no-tags origin "$BASE"
+            changed="$RUNNER_TEMP/changed"
+            git diff --no-renames --name-only "$BASE" HEAD >"$changed"
+          fi
+          echo "matrix=$(./scripts/ci.sh --matrix "$TIER" ${changed:+"$changed"})" >> "$GITHUB_OUTPUT"
 
   zizmor:
     runs-on: ubuntu-26.04-arm
@@ -44,6 +51,7 @@ jobs:
   job:
     name: ${{ matrix.job }}
     needs: list
+    if: needs.list.outputs.matrix != '[]'
     runs-on: ${{ matrix.runner || 'ubuntu-26.04-arm' }}
     strategy:
       fail-fast: false
@@ -85,5 +93,5 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           for result in $RESULTS; do
-            [[ "$result" == success ]] || { echo "::error::a job ended with $result"; exit 1; }
+            [[ "$result" == success || "$result" == skipped ]] || { echo "::error::a job ended with $result"; exit 1; }
           done

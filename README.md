@@ -10,16 +10,19 @@ install Nix, cache and upload.
 
 - `scripts/ci/jobs` lists the jobs, one row each: the job name, then `key=value` settings. A `*`
   row gives every row's defaults.
-  - `tier=merge` runs the job only in the merge queue, a schedule and a manual run. The default,
-    `fast`, also runs it on pull requests and pushes.
+  - `tier=merge` runs the job only in the merge queue, on a tag, a schedule and a manual run. The
+    default, `fast`, also runs it on pull requests and branch pushes.
+  - `skip-if-only=<pattern>,...` leaves the job out of a pull request or merge queue run when
+    every changed file matches one of the patterns (bash patterns: `docs/*`, `*.md`; `*` also
+    matches `/`). An empty value turns off a default.
   - `in=<group>` runs it inside the job `<group>`, one after another, instead of on a runner of its
     own. A group runs every member and fails if any did.
   - `shell=<name>` picks the dev shell (`nix develop .#<name>`; `default` otherwise).
   - `runner`, `fetch-depth` and `rust-cache=true` set up the job's runner.
 - `scripts/ci.sh` and `scripts/ci/lib.sh` are the same in every repository (the copies here, in
   `ci/`). `scripts/ci.sh <job>` enters the job's dev shell and runs `scripts/ci/<job>.sh`, which
-  sources `lib.sh`. `scripts/ci.sh --list` prints the job names, and `--matrix fast|all` the shared
-  workflow's matrix, without Nix.
+  sources `lib.sh`. `scripts/ci.sh --list` prints the job names, and `--matrix fast|all [changed-files]` the
+  shared workflow's matrix, without Nix.
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
 
 ### `scripts/release.ts`
@@ -161,17 +164,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+  schedule:
+    - cron: "0 16 * * *" # every job on main, which also keeps main's caches warm
+  workflow_dispatch:
   workflow_call: # the release runs all of CI on the commit it releases
 permissions:
   contents: read
+# A new push to a pull request stops its older run; a push to main does not stop the schedule.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   ci:
     uses: zeabur-oss/.github/.github/workflows/ci.yml@<sha> # main
-    with:
-      rust-cache: true
   dco:
     uses: zeabur-oss/.github/.github/workflows/dco.yml@<sha> # main
 ```
