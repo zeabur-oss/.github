@@ -3,7 +3,7 @@ name: CI
 # Runs the jobs of a repository's scripts/ci/jobs.toml, each as `scripts/ci.sh <job>`, plus zizmor. A
 # pull request and a branch push run the `fast` tier; the merge queue, a tag, a schedule and a
 # manual run take every job. Each job's runner, fetch depth, Rust cache and skip-if-only patterns
-# come from its row.
+# come from its table.
 on:
   workflow_call:
 
