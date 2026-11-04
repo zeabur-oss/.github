@@ -1,21 +1,11 @@
 name: CI
 
-# Runs each job of `scripts/ci.sh --list` as `scripts/ci.sh <job>`, plus zizmor.
+# Runs the jobs of a repository's scripts/ci/jobs, each as `scripts/ci.sh <job>`, plus zizmor. A
+# pull request and a branch push run the `fast` tier; the merge queue, a tag, a schedule and a
+# manual run take every job. Each job's runner, fetch depth, Rust cache and skip-if-only patterns
+# come from its row.
 on:
   workflow_call:
-    inputs:
-      runner:
-        description: The runner of every job.
-        type: string
-        default: ubuntu-26.04-arm
-      fetch-depth:
-        description: Commits to fetch; 0 fetches all of them.
-        type: number
-        default: 1
-      rust-cache:
-        description: Restore and save target/ and the Cargo registry, one cache per job.
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -27,21 +17,29 @@ jobs:
   list:
     runs-on: ubuntu-slim
     outputs:
-      jobs: ${{ steps.list.outputs.jobs }}
+      matrix: ${{ steps.list.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: scripts
-      # --list runs without the dev shell.
+      # A pull request and the merge queue compare their trees with the base, so a job whose
+      # skip-if-only patterns cover every changed file stays out. --matrix runs without the dev shell.
       - id: list
+        env:
+          TIER: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')) && 'fast' || 'all' }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
-          jobs=$(./scripts/ci.sh --list | awk 'NF { printf "%s\"%s\"", (n++ ? "," : ""), $1 }')
-          [[ -n "$jobs" ]] || { echo "::error::scripts/ci.sh --list printed no jobs"; exit 1; }
-          echo "jobs=[$jobs]" >> "$GITHUB_OUTPUT"
+          changed=""
+          if [[ -n "$BASE" ]]; then
+            git fetch --quiet --depth=1 --no-tags origin "$BASE"
+            changed="$RUNNER_TEMP/changed"
+            git diff --no-renames --name-only "$BASE" HEAD >"$changed"
+          fi
+          echo "matrix=$(./scripts/ci.sh --matrix "$TIER" ${changed:+"$changed"})" >> "$GITHUB_OUTPUT"
 
   zizmor:
-    runs-on: ${{ inputs.runner }}
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,21 +51,22 @@ jobs:
   job:
     name: ${{ matrix.job }}
     needs: list
-    runs-on: ${{ inputs.runner }}
+    if: needs.list.outputs.matrix != '[]'
+    runs-on: ${{ matrix.runner || 'ubuntu-26.04-arm' }}
     strategy:
       fail-fast: false
       matrix:
-        job: ${{ fromJSON(needs.list.outputs.jobs) }}
+        include: ${{ fromJSON(needs.list.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: ${{ inputs.fetch-depth }}
+          fetch-depth: ${{ matrix.fetch-depth || 1 }}
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
       # rust-cache keys on `rustc -vV`, so use the dev shell's toolchain.
-      - if: inputs.rust-cache
+      - if: matrix.rust-cache == 'true'
         run: dirname "$(nix develop --command bash -c 'command -v rustc')" >> "$GITHUB_PATH"
-      - if: inputs.rust-cache
+      - if: matrix.rust-cache == 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.job }}
@@ -94,5 +93,5 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           for result in $RESULTS; do
-            [[ "$result" == success ]] || { echo "::error::a job ended with $result"; exit 1; }
+            [[ "$result" == success || "$result" == skipped ]] || { echo "::error::a job ended with $result"; exit 1; }
           done
