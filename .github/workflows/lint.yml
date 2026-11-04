@@ -35,7 +35,9 @@ jobs:
       - name: Formatted
         run: nix develop --command bun fmt --check .
       - name: Type checked
-        run: nix develop --command bun check release/ checks/
+        run: nix develop --command bun check release/ checks/ ci/
+      - name: Job table tests
+        run: nix develop --command bun test ci/
       - name: Tests, against a registry in memory with images docker saves
         run: nix develop --command bun test release/
 

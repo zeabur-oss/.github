@@ -8,21 +8,41 @@ install Nix, cache and upload.
 
 ### `scripts/ci.sh`
 
-- `scripts/ci/jobs` lists the jobs, one row each: the job name, then `key=value` settings. A `*`
-  row gives every row's defaults.
-  - `tier=merge` runs the job only in the merge queue, on a tag, a schedule and a manual run. The
-    default, `fast`, also runs it on pull requests and branch pushes.
-  - `skip-if-only=<pattern>,...` leaves the job out of a pull request or merge queue run when
-    every changed file matches one of the patterns (bash patterns: `docs/*`, `*.md`; `*` also
-    matches `/`). An empty value turns off a default.
-  - `in=<group>` runs it inside the job `<group>`, one after another, instead of on a runner of its
-    own. A group runs every member and fails if any did.
-  - `shell=<name>` picks the dev shell (`nix develop .#<name>`; `default` otherwise).
-  - `runner`, `fetch-depth` and `rust-cache=true` set up the job's runner.
-- `scripts/ci.sh` and `scripts/ci/lib.sh` are the same in every repository (the copies here, in
-  `ci/`). `scripts/ci.sh <job>` enters the job's dev shell and runs `scripts/ci/<job>.sh`, which
-  sources `lib.sh`. `scripts/ci.sh --list` prints the job names, and `--matrix fast|all [changed-files]` the
-  shared workflow's matrix, without Nix.
+- `scripts/ci/jobs.toml` lists the jobs: an optional `[defaults]` table that every job starts
+  from, and one `[jobs.<name>]` table per job, in the order they appear. A job's own settings
+  replace the defaults.
+
+  ```toml
+  [defaults]
+  rust-cache = true
+  skip-if-only = ["docs/*", "*.md"]
+
+  [jobs.lint]
+  [jobs.format]
+  in = "lint"
+  [jobs.ui]
+  fetch-depth = 2
+  [jobs.kubernetes]
+  tier = "merge"
+  skip-if-only = []
+  ```
+
+  - `tier = "merge"` runs the job only in the merge queue, on a tag, a schedule and a manual run.
+    The default, `"fast"`, also runs it on pull requests and branch pushes.
+  - `skip-if-only` is an array of patterns. It leaves the job out of a pull request or merge queue
+    run when every changed file matches one of them (`docs/*`, `*.md`; `*` also matches `/`, the
+    rest is literal). An empty array turns off the default.
+  - `in = "<group>"` runs it inside the job `<group>`, one after another, instead of on a runner
+    of its own. A group runs every member and fails if any did.
+  - `shell = "<name>"` picks the dev shell (`nix develop .#<name>`; `default` otherwise).
+  - `runner`, `fetch-depth` and `rust-cache` set up the job's runner; the workflow gets them as
+    strings.
+
+- `scripts/ci.sh`, `scripts/ci/lib.sh` and `scripts/ci/matrix.ts` are the same in every repository
+  (the copies here, in `ci/`). `scripts/ci.sh <job>` enters the job's dev shell and runs
+  `scripts/ci/<job>.sh`, which sources `lib.sh`. `scripts/ci.sh --list` prints the job names.
+  `bun scripts/ci/matrix.ts fast|all [changed-files]` prints the shared workflow's matrix as JSON
+  (`[]` when no job is left); `changed-files` is a file with one path per line.
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
 
 ### `scripts/release.ts`

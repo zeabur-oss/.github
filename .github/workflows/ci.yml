@@ -1,6 +1,6 @@
 name: CI
 
-# Runs the jobs of a repository's scripts/ci/jobs, each as `scripts/ci.sh <job>`, plus zizmor. A
+# Runs the jobs of a repository's scripts/ci/jobs.toml, each as `scripts/ci.sh <job>`, plus zizmor. A
 # pull request and a branch push run the `fast` tier; the merge queue, a tag, a schedule and a
 # manual run take every job. Each job's runner, fetch depth, Rust cache and skip-if-only patterns
 # come from its row.
@@ -23,8 +23,9 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: scripts
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       # A pull request and the merge queue compare their trees with the base, so a job whose
-      # skip-if-only patterns cover every changed file stays out. --matrix runs without the dev shell.
+      # skip-if-only patterns cover every changed file stays out. The matrix runs without the dev shell.
       - id: list
         env:
           TIER: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')) && 'fast' || 'all' }}
@@ -36,7 +37,7 @@ jobs:
             changed="$RUNNER_TEMP/changed"
             git diff --no-renames --name-only "$BASE" HEAD >"$changed"
           fi
-          echo "matrix=$(./scripts/ci.sh --matrix "$TIER" ${changed:+"$changed"})" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(bun scripts/ci/matrix.ts "$TIER" ${changed:+"$changed"})" >> "$GITHUB_OUTPUT"
 
   zizmor:
     runs-on: ubuntu-26.04-arm
