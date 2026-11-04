@@ -3,7 +3,7 @@ name: CI
 # Runs the jobs of a repository's scripts/ci/jobs, each as `scripts/ci.sh <job>`, plus zizmor. A
 # pull request and a branch push run the `fast` tier; the merge queue, a tag, a schedule and a
 # manual run take every job. Each job's runner, fetch depth, Rust cache and skip-if-only patterns
-# come from its row.
+# come from its row. A pull request runs zizmor only when it changes .github.
 on:
   workflow_call:
 
@@ -18,27 +18,34 @@ jobs:
     runs-on: ubuntu-slim
     outputs:
       matrix: ${{ steps.list.outputs.matrix }}
+      workflows: ${{ steps.list.outputs.workflows }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: scripts
       # A pull request and the merge queue compare their trees with the base, so a job whose
-      # skip-if-only patterns cover every changed file stays out. --matrix runs without the dev shell.
+      # skip-if-only patterns cover every changed file stays out, and a pull request that leaves
+      # .github alone skips zizmor. --matrix runs without the dev shell.
       - id: list
         env:
           TIER: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')) && 'fast' || 'all' }}
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          EVENT: ${{ github.event_name }}
         run: |
-          changed=""
+          changed="" workflows=true
           if [[ -n "$BASE" ]]; then
             git fetch --quiet --depth=1 --no-tags origin "$BASE"
             changed="$RUNNER_TEMP/changed"
             git diff --no-renames --name-only "$BASE" HEAD >"$changed"
+            [[ "$EVENT" != pull_request ]] || grep -q '^\.github/' "$changed" || workflows=false
           fi
+          echo "workflows=$workflows" >> "$GITHUB_OUTPUT"
           echo "matrix=$(./scripts/ci.sh --matrix "$TIER" ${changed:+"$changed"})" >> "$GITHUB_OUTPUT"
 
   zizmor:
+    needs: list
+    if: needs.list.outputs.workflows == 'true'
     runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
