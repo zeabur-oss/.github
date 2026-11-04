@@ -1,0 +1,19 @@
+name: zizmor
+
+# zizmor on the caller's .github.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
+      - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github

@@ -1,29 +1,28 @@
 # zeabur-oss/.github
 
-The CI, DCO, changeset, release pull request, release and update workflows every zeabur-oss repository calls, and the shared Renovate
-preset. A repository keeps what is its own in two scripts; the workflows here only check out,
-install Nix, cache and upload.
+The CI setup action and the zizmor, DCO, changeset, release pull request, release and update
+workflows every zeabur-oss repository calls, and the shared Renovate preset. A repository keeps
+what is its own in its CI workflow and scripts; what is here only checks out, installs Nix, caches
+and uploads.
 
 ## The contract
 
-### `scripts/ci.sh`
+### CI
 
-- `scripts/ci/jobs` lists the jobs, one row each: the job name, then `key=value` settings. A `*`
-  row gives every row's defaults.
-  - `tier=merge` runs the job only in the merge queue, on a tag, a schedule and a manual run. The
-    default, `fast`, also runs it on pull requests and branch pushes.
-  - `skip-if-only=<pattern>,...` leaves the job out of a pull request or merge queue run when
-    every changed file matches one of the patterns (bash patterns: `docs/*`, `*.md`; `*` also
-    matches `/`). An empty value turns off a default.
-  - `in=<group>` runs it inside the job `<group>`, one after another, instead of on a runner of its
-    own. A group runs every member and fails if any did.
-  - `shell=<name>` picks the dev shell (`nix develop .#<name>`; `default` otherwise).
-  - `runner`, `fetch-depth` and `rust-cache=true` set up the job's runner.
-- `scripts/ci.sh` and `scripts/ci/lib.sh` are the same in every repository (the copies here, in
-  `ci/`). `scripts/ci.sh <job>` enters the job's dev shell and runs `scripts/ci/<job>.sh`, which
-  sources `lib.sh`. `scripts/ci.sh --list` prints the job names, and `--matrix fast|all [changed-files]` the
-  shared workflow's matrix, without Nix.
-- A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
+A repository's `.github/workflows/ci.yml` lists its jobs. Each one checks out, runs
+`actions/ci-setup` and then `nix develop -c scripts/ci/<job>.sh` (`nix develop .#<shell>` for
+another dev shell), so a job runs the same way locally. Each `scripts/ci/<job>.sh` is plain bash
+that starts with `set -euo pipefail` and `cd "$(dirname "$0")/../.."`.
+
+- `actions/ci-setup` installs Nix. With `rust-cache: true` it also caches `~/.cargo` and `target/`
+  per job with Swatinem/rust-cache, keyed on the dev shell's `rustc`.
+- Jobs that need a minute or less of work share a runner: `lint.sh` runs the formatters, linters
+  and other short checks one after another.
+- Slow jobs run only in the merge queue, on a schedule, a manual run or a tag, with
+  `if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')`.
+- The job `ok` (named `ci / ok`, the check rulesets require) needs every other job, runs
+  `if: always()` and fails when one of them failed or was cancelled.
+- `zizmor.yml` runs zizmor on the caller's `.github`.
 
 ### `scripts/release.ts`
 
@@ -68,7 +67,7 @@ dependencies of those packages that have `unsafe` code or link native code. It w
 `target/unsafe-report.md` and fails on any that the repository's
 `supply-chain/unsafe-allowlist.toml` does not approve, and on any entry there whose crate and kind
 the shipped graph doesn't need: a crate that comes back needs a new approval. A Rust repository runs
-`node_modules/.bin/zeabur-oss-unsafe-report` from its `scripts/ci.sh`; Cargo comes from the caller's
+`node_modules/.bin/zeabur-oss-unsafe-report` from its `scripts/ci/lint.sh`; Cargo comes from the caller's
 dev shell.
 
 ### Change files and release pull requests
@@ -170,16 +169,46 @@ on:
   schedule:
     - cron: "0 16 * * *" # every job on main, which also keeps main's caches warm
   workflow_dispatch:
-  workflow_call: # the release runs all of CI on the commit it releases
 permissions:
   contents: read
 # A new push to a pull request stops its older run; a push to main does not stop the schedule.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
 jobs:
-  ci:
-    uses: zeabur-oss/.github/.github/workflows/ci.yml@<sha> # main
+  lint:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@<sha> # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zeabur-oss/.github/actions/ci-setup@<sha> # main
+        with:
+          rust-cache: true
+      - run: nix develop -c scripts/ci/lint.sh
+  kubernetes:
+    if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@<sha> # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zeabur-oss/.github/actions/ci-setup@<sha> # main
+        with:
+          rust-cache: true
+      - run: nix develop -c scripts/ci/kubernetes.sh
+  zizmor:
+    uses: zeabur-oss/.github/.github/workflows/zizmor.yml@<sha> # main
+  ok:
+    name: ci / ok
+    if: always()
+    needs: [lint, kubernetes, zizmor]
+    runs-on: ubuntu-slim
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
   dco:
     uses: zeabur-oss/.github/.github/workflows/dco.yml@<sha> # main
 ```
@@ -202,10 +231,7 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  checks:
-    uses: ./.github/workflows/ci.yml
   release:
-    needs: checks
     uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
     permissions:
       contents: write
