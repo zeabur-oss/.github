@@ -22,9 +22,9 @@ export function parse(text: string): Table {
 
 // Each job with the defaults under its own settings, in the table's order.
 export function entries(table: Table): Entry[] {
-  return Object.entries(table.jobs ?? {}).map(([job, own]) => ({
+  return Object.entries(table.jobs ?? {}).map(([job, settings]) => ({
     job,
-    settings: { ...table.defaults, ...own },
+    settings: { ...table.defaults, ...settings },
   }));
 }
 
