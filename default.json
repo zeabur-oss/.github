@@ -13,7 +13,6 @@
   "internalChecksFilter": "strict",
   "schedule": ["* 3-6 * * *"],
   "updateNotScheduled": false,
-  "prHourlyLimit": 2,
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["* 3-6 * * 1"]
@@ -22,10 +21,6 @@
     {
       "matchManagers": ["github-actions"],
       "groupName": "github actions"
-    },
-    {
-      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
-      "groupName": "non-major"
     },
     {
       "description": "The pins of zeabur-oss/.github move in the Update workflow: the shared workflows and actions, @zeabur-oss/release in package.json and the flake input in flake.lock.",

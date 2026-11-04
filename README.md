@@ -113,8 +113,7 @@ the bot, since most pins are under `.github/workflows`.
 ### Renovate
 
 `default.json` leaves third-party updates to Renovate, daily between 03:00 and 06:59 in
-Asia/Taipei, at most 2 pull requests an hour, with minor, patch, digest and pin updates in one
-`non-major` group and major updates apart. Lock file maintenance runs in the same hours on Monday.
+Asia/Taipei, one pull request per update. Lock file maintenance runs in the same hours on Monday.
 `updateNotScheduled` is `false`, so updates to existing branches wait for the schedule too. Per the
 Renovate documentation, a vulnerability-fix pull request ignores `schedule` and `prHourlyLimit`.
 A repository's own groups and package rules override these.
