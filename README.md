@@ -15,7 +15,9 @@ another dev shell), so a job runs the same way locally. Each `scripts/ci/<job>.s
 that starts with `set -euo pipefail` and `cd "$(dirname "$0")/../.."`.
 
 - `actions/ci-setup` installs Nix. With `rust-cache: true` it also caches `~/.cargo` and `target/`
-  per job with Swatinem/rust-cache, keyed on the dev shell's `rustc`.
+  per job with Swatinem/rust-cache, keyed on the dev shell's `rustc`. Only runs on `main` save it;
+  a cache saved on a pull request or merge queue ref can't be read from any other ref. The
+  scheduled run keeps the caches of the merge-queue-only jobs current.
 - Jobs that need a minute or less of work share a runner: `lint.sh` runs the formatters, linters
   and other short checks one after another.
 - Slow jobs run only in the merge queue, on a schedule, a manual run or a tag, with
