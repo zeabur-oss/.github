@@ -23,6 +23,18 @@
       "groupName": "github actions"
     },
     {
+      "description": "One pull request for compatible crate updates; majors stay separate.",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "cargo (non-major)"
+    },
+    {
+      "description": "kube and its companion crates each require one k8s-openapi minor, so they move together in one pull request, majors included.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["k8s-openapi", "/^kube(-|$)/"],
+      "groupName": "kubernetes crates"
+    },
+    {
       "description": "The pins of zeabur-oss/.github move in the Update workflow: the shared workflows and actions, @zeabur-oss/release in package.json and the flake input in flake.lock.",
       "matchPackageNames": [
         "zeabur-oss/.github",
