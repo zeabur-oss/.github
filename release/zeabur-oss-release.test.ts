@@ -3,7 +3,16 @@
 // signing needs a CI token. Run with `bun test release/` in the dev shell, with Docker.
 import { $ } from "bun";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile, chmod, cp } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import {
+  mkdtemp,
+  mkdir,
+  readdir,
+  rm,
+  writeFile,
+  chmod,
+  cp,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -16,6 +25,7 @@ import {
   pushImage,
   readDigests,
   recorded,
+  scratch,
   section,
   sha256,
   sums,
@@ -25,6 +35,32 @@ import {
 } from "./zeabur-oss-release";
 
 const digest = (c: string) => `sha256:${c.repeat(64)}`;
+
+describe("scratch", () => {
+  test("is an empty directory with a registry login of its own", async () => {
+    const { dir, env } = await scratch();
+    try {
+      expect(env.DOCKER_CONFIG).toBe(join(dir, "docker"));
+      expect(env.HELM_REGISTRY_CONFIG).toBe(join(dir, "docker", "config.json"));
+      expect(await readdir(env.DOCKER_CONFIG)).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("is removed when the process ends", async () => {
+    const script = `import { scratch } from ${JSON.stringify(join(import.meta.dir, "zeabur-oss-release"))};
+console.log((await scratch()).dir);`;
+    const file = join(await mkdtemp(join(tmpdir(), "scratch-test-")), "run.ts");
+    await writeFile(file, script);
+    try {
+      const out = (await $`bun ${file}`.text()).trim();
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      await rm(join(file, ".."), { recursive: true, force: true });
+    }
+  });
+});
 
 describe("section", () => {
   const changelog = [

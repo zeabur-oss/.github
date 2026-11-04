@@ -70,6 +70,10 @@ await verifyChart(
 );
 ```
 
+`scratch()` makes a temporary directory that is removed when the process ends, and returns it with
+`DOCKER_CONFIG` and `HELM_REGISTRY_CONFIG` pointing at an empty login inside it, to spread into the
+environment of crane and helm.
+
 Each function throws `Failure` when the release must stop; push* return what they pushed and
 verify* what they verified. verify* read the signer from `RELEASE_CERT_IDENTITY_REGEXP`,
 `RELEASE_SIGNER_WORKFLOW`, `RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`, which the

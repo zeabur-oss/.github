@@ -10,7 +10,9 @@
 // left out), two spaces and the reference by digest. subjects.json is what the workflow attests.
 // verify* read the signer from the RELEASE_* variables the shared release workflow sets.
 import { $ } from "bun";
-import { appendFile, readdir, rm } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { changeset, prepareRelease, releaseOf } from "./changes";
@@ -146,6 +148,25 @@ async function chartIs(ref: Ref, chart: string) {
     layers[0].digest !== `sha256:${await sha256(chart)}`
   )
     fail(`${ref} is not ${chart}`);
+}
+
+// A directory of this run's own, removed when the process ends, with an empty registry login.
+// Helm reads the same file as crane.
+export async function scratch(): Promise<{
+  dir: string;
+  env: Record<string, string>;
+}> {
+  const dir = await mkdtemp(join(tmpdir(), "release-"));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  const docker = join(dir, "docker");
+  await mkdir(docker);
+  return {
+    dir,
+    env: {
+      DOCKER_CONFIG: docker,
+      HELM_REGISTRY_CONFIG: join(docker, "config.json"),
+    },
+  };
 }
 
 // The SHA-256 of a file, in hex, as sha256sum prints it.
