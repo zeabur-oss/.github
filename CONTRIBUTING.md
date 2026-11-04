@@ -21,8 +21,8 @@ only when its pin moves:
 
 1. Keep inputs backward compatible: a new input has a default that keeps today's behaviour.
 2. Update the contract in [README.md](README.md) together with the workflow.
-3. After merging, zeabur-oss-bot opens a pull request moving the pins in each caller (Pins);
-   review it and let each repository's CI pass before relying on the change.
+3. After merging, each caller's Update workflow moves its pins on Monday, or when run by hand;
+   review its pull request and let each repository's CI pass before relying on the change.
 
 `Lint` runs actionlint (with shellcheck) on every workflow here, and the tests of
 [`zeabur-oss-release`](release/README.md); run them locally with `nix develop`, then `actionlint`,

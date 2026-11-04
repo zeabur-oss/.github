@@ -1,6 +1,6 @@
 # zeabur-oss/.github
 
-The CI, DCO, changeset, release pull request, release and skills workflows every zeabur-oss repository calls, and the shared Renovate
+The CI, DCO, changeset, release pull request, release and update workflows every zeabur-oss repository calls, and the shared Renovate
 preset. A repository keeps what is its own in two scripts; the workflows here only check out,
 install Nix, cache and upload.
 
@@ -89,13 +89,6 @@ starts the repository's release. Both run `zeabur-oss-release` from the caller's
 The repository needs the label `changelog: none`, and a tag ruleset that lets zeabur-oss-bot create
 `v*` tags while nobody may move or delete them.
 
-### Skills
-
-`skills.yml` copies each skill in `.claude/skills` that `zeabur-oss/skills` also has, by directory
-name, again from its `main`, and opens `update/skills` as zeabur-oss-bot. To use a shared skill,
-copy its directory from `zeabur-oss/skills/skills/` into `.claude/skills/`. The repository needs
-the bot installed and `ZEABUR_OSS_BOT_PRIVATE_KEY` with `ZEABUR_OSS_BOT_CLIENT_ID` visible to it.
-
 ### Bot pull requests
 
 `actions/bot-pr` opens or updates a pull request with the working tree's changes as
@@ -104,17 +97,27 @@ zeabur-oss-bot, whose pull requests start CI. Pass `client-id: ${{ vars.ZEABUR_O
 changes touch `.github/workflows` (the bot's Workflows write permission); the job needs no write
 permission of its own.
 
-### Pins
+### Update
 
-After each push to `main`, `pins-dispatch.yml` sends the `repository_dispatch` event
-`zeabur-oss-github` to every repository listed in its `repositories`. A repository's Pins
-workflow then calls `pins.yml`, which moves every pin of this repository to one commit and opens
-`update/zeabur-oss-github` as zeabur-oss-bot: the flake input in `flake.lock` (its locked revision
-is the commit for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in
-`package.json` with `bun install`. Renovate leaves these pins alone. A new caller adds the Pins
-workflow below and its name to `repositories`. This repository needs
-`ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to it, and each caller needs
-them as for Skills. The bot needs Workflows write, since most pins are under `.github/workflows`.
+`update.yml` opens one pull request, `update/zeabur-oss`, as zeabur-oss-bot. It moves every pin of
+this repository to one commit: the flake input in `flake.lock` (its locked revision is the commit
+for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in `package.json` with
+`bun install`. Then it copies each skill in `.claude/skills` that `zeabur-oss/skills` also has, by
+directory name, again from its `main`. To use a shared skill, copy its directory from
+`zeabur-oss/skills/skills/` into `.claude/skills/`. Nothing is dispatched on a push to `main`; a
+caller runs it on Monday 02:30 in Asia/Taipei, or by hand with `workflow_dispatch` when a change is
+urgent. Renovate leaves these pins alone. This repository and each caller need the bot installed,
+`ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to them, and Workflows write for
+the bot, since most pins are under `.github/workflows`.
+
+### Renovate
+
+`default.json` leaves third-party updates to Renovate, daily between 03:00 and 06:59 in
+Asia/Taipei, at most 2 pull requests an hour, with minor, patch, digest and pin updates in one
+`non-major` group and major updates apart. Lock file maintenance runs in the same hours on Monday.
+`updateNotScheduled` is `false`, so updates to existing branches wait for the schedule too. Per the
+Renovate documentation, a vulnerability-fix pull request ignores `schedule` and `prHourlyLimit`.
+A repository's own groups and package rules override these.
 
 ### Signatures
 
@@ -154,7 +157,7 @@ for work that needs that platform, such as an amd64 build or e2e run.
 
 ## Calling the workflows
 
-Pin this repository by commit; the Pins workflow updates the pins.
+Pin this repository by commit; the Update workflow updates the pins.
 
 `.github/workflows/ci.yml`:
 
@@ -259,36 +262,19 @@ jobs:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
-`.github/workflows/skills.yml`, Monday morning in Asia/Taipei like Renovate's lock file maintenance:
+`.github/workflows/update.yml`, Monday 02:30 in Asia/Taipei:
 
 ```yaml
-name: Skills
+name: Update
 on:
   schedule:
-    - cron: "0 17 * * 0"
+    - cron: "30 18 * * 0"
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  skills:
-    uses: zeabur-oss/.github/.github/workflows/skills.yml@<sha> # main
-    secrets:
-      private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
-```
-
-`.github/workflows/pins.yml`:
-
-```yaml
-name: Pins
-on:
-  repository_dispatch:
-    types: [zeabur-oss-github]
-  workflow_dispatch:
-permissions:
-  contents: read
-jobs:
-  pins:
-    uses: zeabur-oss/.github/.github/workflows/pins.yml@<sha> # main
+  update:
+    uses: zeabur-oss/.github/.github/workflows/update.yml@<sha> # main
     secrets:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```

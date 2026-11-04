@@ -11,9 +11,12 @@
   "commitBody": "Signed-off-by: renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>",
   "minimumReleaseAge": "7 days",
   "internalChecksFilter": "strict",
+  "schedule": ["* 3-6 * * *"],
+  "updateNotScheduled": false,
+  "prHourlyLimit": 2,
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["* 0-5 * * 1"]
+    "schedule": ["* 3-6 * * 1"]
   },
   "packageRules": [
     {
@@ -21,7 +24,11 @@
       "groupName": "github actions"
     },
     {
-      "description": "The pins of zeabur-oss/.github move in the Pins workflow, after each push to its main: the shared workflows and actions, @zeabur-oss/release in package.json and the flake input in flake.lock.",
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
+      "groupName": "non-major"
+    },
+    {
+      "description": "The pins of zeabur-oss/.github move in the Update workflow: the shared workflows and actions, @zeabur-oss/release in package.json and the flake input in flake.lock.",
       "matchPackageNames": [
         "zeabur-oss/.github",
         "@zeabur-oss/release",
