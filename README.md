@@ -9,6 +9,9 @@ install Nix, cache and upload.
 ### `scripts/ci.sh`
 
 - `scripts/ci.sh --list` prints the job names, one per line, without the Nix dev shell.
+  `scripts/ci.sh --list fast` prints the ones a pull request and a push to `main` run; the merge
+  queue, a schedule and a manual run take all of them. A script that ignores `fast` runs every job
+  everywhere.
 - `scripts/ci.sh <job>` runs one job. It enters the repository's Nix dev shell itself, so a job
   runs the same on GitHub and on any Linux machine with Nix (and Docker, for cluster jobs).
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
