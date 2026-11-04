@@ -1,9 +1,11 @@
-name: Pins
+name: Update
 
-# Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main and opens
-# one pull request as zeabur-oss-bot (actions/bot-pr): the flake input in flake.lock, each `uses:`
-# under .github and @zeabur-oss/release in package.json and bun.lock. The flake input is updated
-# first and its locked revision is the commit for the rest.
+# Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main, copies the
+# shared skills again from zeabur-oss/skills, and opens one pull request as zeabur-oss-bot
+# (actions/bot-pr). The pins come first: the flake input in flake.lock, each `uses:` under .github
+# and @zeabur-oss/release in package.json and bun.lock. The flake input is updated first and its
+# locked revision is the commit for the rest. The skills are each skill in .claude/skills that
+# zeabur-oss/skills also has.
 on:
   workflow_call:
     secrets:
@@ -15,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  pins:
+  update:
     runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,11 +46,25 @@ jobs:
             nix develop --command bun install
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - id: copy
+        run: |
+          source="$RUNNER_TEMP/skills"
+          git clone --quiet --depth 1 https://github.com/zeabur-oss/skills.git "$source"
+          for dir in .claude/skills/*/; do
+            name=$(basename "$dir")
+            [[ -d "$source/skills/$name" ]] || continue
+            rm -rf "$dir"
+            cp -R "$source/skills/$name" "$dir"
+          done
+          echo "sha=$(git -C "$source" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: zeabur-oss/.github/actions/bot-pr@1e30fc7b457256c477278e2869e2a86a151fb0b0 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
           workflows: "true"
-          branch: update/zeabur-oss-github
-          title: "chore(deps): update zeabur-oss/.github"
-          body: Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}.
+          branch: update/zeabur-oss
+          title: "chore(deps): update zeabur-oss/.github and the shared skills"
+          body: |
+            Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}.
+
+            Copies the shared skills again from zeabur-oss/skills@${{ steps.copy.outputs.sha }}.
