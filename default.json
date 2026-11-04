@@ -23,6 +23,12 @@
       "groupName": "github actions"
     },
     {
+      "description": "One pull request for compatible crate updates; majors stay separate.",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "cargo (non-major)"
+    },
+    {
       "description": "kube and its companion crates each require one k8s-openapi minor, so they move together in one pull request, majors included.",
       "matchManagers": ["cargo"],
       "matchPackageNames": ["k8s-openapi", "/^kube(-|$)/"],
