@@ -8,14 +8,19 @@ install Nix, cache and upload.
 
 ### `scripts/ci.sh`
 
-- `scripts/ci.sh --list` prints the job names, one per line, without the Nix dev shell.
-  `scripts/ci.sh --list fast` prints the ones a pull request and a push to `main` run; the merge
-  queue, a schedule and a manual run take all of them. A script that ignores `fast` runs every job
-  everywhere.
-- `scripts/ci.sh <job>` runs one job. It enters the repository's Nix dev shell itself, so a job
-  runs the same on GitHub and on any Linux machine with Nix (and Docker, for cluster jobs).
+- `scripts/ci/jobs` lists the jobs, one row each: the job name, then `key=value` settings. A `*`
+  row gives every row's defaults.
+  - `tier=merge` runs the job only in the merge queue, a schedule and a manual run. The default,
+    `fast`, also runs it on pull requests and pushes.
+  - `in=<group>` runs it inside the job `<group>`, one after another, instead of on a runner of its
+    own. A group runs every member and fails if any did.
+  - `shell=<name>` picks the dev shell (`nix develop .#<name>`; `default` otherwise).
+  - `runner`, `fetch-depth` and `rust-cache=true` set up the job's runner.
+- `scripts/ci.sh` and `scripts/ci/lib.sh` are the same in every repository (the copies here, in
+  `ci/`). `scripts/ci.sh <job>` enters the job's dev shell and runs `scripts/ci/<job>.sh`, which
+  sources `lib.sh`. `scripts/ci.sh --list` prints the job names, and `--matrix fast|all` the shared
+  workflow's matrix, without Nix.
 - A job may leave files in `$CI_ARTIFACTS`; they are uploaded as the artifact `ci-<job>`.
-- Inputs of the shared `ci.yml`: `runner`, `fetch-depth` and `rust-cache`.
 
 ### `scripts/release.ts`
 
