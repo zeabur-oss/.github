@@ -3,10 +3,12 @@ name: Release pull request
 # Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
 # version (knope.toml's prepare-release workflow, which may run the caller's own steps), the
 # caller's `bun scripts/release.ts check` confirms every manifest has it, and zeabur-oss-bot opens
-# `chore(release): vX.Y.Z` from release/next. With a pre-release label, knope writes
-# vX.Y.Z-<label>.N with every change since the last normal release and keeps the change files for
-# it. On main, once that pull request is merged, zeabur-oss-bot tags the commit, which starts the
-# caller's release; a tag pushed with GITHUB_TOKEN would start no workflow.
+# `chore(release): vX.Y.Z` from release/next into the branch it ran on: main, or a maintenance
+# branch maint/vX.Y. One release pull request at a time: merge or close it before preparing
+# another. With a pre-release label, knope writes vX.Y.Z-<label>.N with every change since the
+# last normal release and keeps the change files for it. On main or maint/vX.Y, once that pull
+# request is merged, zeabur-oss-bot tags the commit, which starts the caller's release; a tag
+# pushed with GITHUB_TOKEN would start no workflow. maint/vX.Y takes only vX.Y.* tags.
 on:
   workflow_call:
     inputs:
@@ -77,7 +79,8 @@ jobs:
 
   tag:
     if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/maint/')) &&
       startsWith(github.event.head_commit.message, 'chore(release): v')
     runs-on: ${{ inputs.runner }}
     steps:
@@ -87,9 +90,15 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
       - run: nix develop --command bun install --frozen-lockfile
       - id: release
+        env:
+          BRANCH: ${{ github.ref_name }}
         run: |
           subject=$(git log -1 --format=%s)
           tag=$(nix develop --command node_modules/.bin/zeabur-oss-release release-of "$subject")
+          if [[ -n "$tag" && "$BRANCH" != main && "$tag" != "${BRANCH#maint/}."* ]]; then
+            echo "::error::$BRANCH releases only ${BRANCH#maint/}.*, not $tag"
+            exit 1
+          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - id: app
         if: steps.release.outputs.tag != ''
