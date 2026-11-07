@@ -1,8 +1,8 @@
 name: Release
 
-# Tag vX.Y.Z or vX.Y.Z-<pre-release> on main: build, smoke, publish by digest, sign, attest, leave a draft release.
+# Tag vX.Y.Z or vX.Y.Z-<pre-release> on main or release/X.Y: build, smoke, publish by digest, sign, attest, leave a draft release.
 # A maintainer publishes the draft. Manual run: rehearse without publishing. No CI and no cache
-# here: main's required checks already passed.
+# here: the branch's required checks already passed.
 #
 # Stages, each `bun scripts/release.ts <stage>` in the caller's dev shell, after `bun install`
 # (the caller's package.json pins @zeabur-oss/release, from release/ here):
@@ -98,7 +98,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
       - run: nix develop --command bun install --frozen-lockfile
       - id: version
-        name: The version is the manifests', with a CHANGELOG.md section, on main
+        name: The version is the manifests', with a CHANGELOG.md section, on main or release/X.Y
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
         run: |
@@ -108,8 +108,11 @@ jobs:
           nix develop --command bun scripts/release.ts check "$VERSION"
           nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            line=$(cut -d. -f1-2 <<<"$VERSION")
+            line=${line#v}
             git merge-base --is-ancestor HEAD origin/main ||
-              { echo "::error::$VERSION is not on main"; exit 1; }
+              git merge-base --is-ancestor HEAD "origin/release/$line" 2>/dev/null ||
+              { echo "::error::$VERSION is not on main or release/$line"; exit 1; }
           fi
           {
             echo "version=$VERSION"
