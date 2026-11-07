@@ -333,8 +333,9 @@ release and a `minor` change a patch.
 When `main` already has changes for the next minor release, release fixes for the current one from
 a maintenance branch:
 
-1. Create `maint/vX.Y` from the tag `vX.Y.0`, and add `refs/heads/maint/*` to the branch ruleset
-   that protects `main`. Maintenance branches don't start with `release/`, which holds the release
+1. Create `maint/vX.Y` from the tag `vX.Y.0`, protected by a branch ruleset for
+   `refs/heads/maint/*` with `main`'s rules but no merge queue, which GitHub doesn't allow on a
+   pattern. Maintenance branches don't start with `release/`, which holds the release
    pull requests' branches.
 2. Merge each fix into `main` first. Then open a pull request that cherry-picks it, with its change
    file, into `maint/vX.Y`.
