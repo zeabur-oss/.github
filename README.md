@@ -83,8 +83,8 @@ label `changelog: none`, and each change file must name a package of `knope.toml
 `minor`, `patch` or a type of the package's `extra_changelog_sections` (such as `security` for a
 `### Security` section, which knope releases as a patch) and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
 `bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` into
-the branch it ran on as zeabur-oss-bot, from `release/next-<branch>`, such as `release/next-main`
-or `release/next-maint/vX.Y` for a maintenance branch `maint/vX.Y`; its inputs are `version`,
+the branch it ran on (`main` or a maintenance branch `maint/vX.Y`) as zeabur-oss-bot, from
+`release/next`, one at a time; its inputs are `version`,
 `prerelease` (a label such as `rc`), `check` and `runner`. On `main` or `maint/vX.Y`, the merged
 release pull request is tagged by the bot, whose tag starts the repository's release.
 `maint/vX.Y` takes only `vX.Y.*` tags. Both run `zeabur-oss-release` from the caller's `bun.lock`.
@@ -338,7 +338,8 @@ a maintenance branch:
    pull requests' branches.
 2. Merge each fix into `main` first. Then open a pull request that cherry-picks it, with its change
    file, into `maint/vX.Y`.
-3. Run the Release pull request workflow on `maint/vX.Y`. The tag must be on `main` or on the
+3. Run the Release pull request workflow on `maint/vX.Y`, once no other release pull request is
+   open: both use `release/next`. The tag must be on `main` or on the
    `maint/vX.Y` its version names; otherwise the release stops before building.
 4. When publishing the draft of an older line, clear **Set as latest** if a newer minor release
    is out.
