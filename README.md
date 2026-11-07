@@ -83,8 +83,8 @@ label `changelog: none`, and each change file must name a package of `knope.toml
 `minor`, `patch` or a type of the package's `extra_changelog_sections` (such as `security` for a
 `### Security` section, which knope releases as a patch) and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
 `bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` into
-the branch it ran on as zeabur-oss-bot, from `release/next` on `main` and from
-`release/next-maint-vX.Y` on a maintenance branch `maint/vX.Y`; its inputs are `version`,
+the branch it ran on as zeabur-oss-bot, from `release/next-<branch>`, such as `release/next-main`
+or `release/next-maint/vX.Y` for a maintenance branch `maint/vX.Y`; its inputs are `version`,
 `prerelease` (a label such as `rc`), `check` and `runner`. On `main` or `maint/vX.Y`, the merged
 release pull request is tagged by the bot, whose tag starts the repository's release.
 `maint/vX.Y` takes only `vX.Y.*` tags. Both run `zeabur-oss-release` from the caller's `bun.lock`.

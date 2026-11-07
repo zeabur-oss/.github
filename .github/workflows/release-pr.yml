@@ -3,12 +3,12 @@ name: Release pull request
 # Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
 # version (knope.toml's prepare-release workflow, which may run the caller's own steps), the
 # caller's `bun scripts/release.ts check` confirms every manifest has it, and zeabur-oss-bot opens
-# `chore(release): vX.Y.Z` into the branch it ran on: from release/next on main, from
-# release/next-maint-vX.Y on a maintenance branch maint/vX.Y. With a pre-release label, knope
-# writes vX.Y.Z-<label>.N with every change since the last normal release and keeps the change
-# files for it. On main or maint/vX.Y, once that pull request is merged, zeabur-oss-bot tags the
-# commit, which starts the caller's release; a tag pushed with GITHUB_TOKEN would start no
-# workflow. maint/vX.Y takes only vX.Y.* tags.
+# `chore(release): vX.Y.Z` from release/next-<branch> into the branch it ran on, such as
+# release/next-main, or release/next-maint/vX.Y for a maintenance branch maint/vX.Y. With a
+# pre-release label, knope writes vX.Y.Z-<label>.N with every change since the last normal release
+# and keeps the change files for it. On main or maint/vX.Y, once that pull request is merged,
+# zeabur-oss-bot tags the commit, which starts the caller's release; a tag pushed with
+# GITHUB_TOKEN would start no workflow. maint/vX.Y takes only vX.Y.* tags.
 on:
   workflow_call:
     inputs:
@@ -69,20 +69,11 @@ jobs:
             nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$TAG"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
-      - id: branch
-        env:
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          if [[ "$BRANCH" == main ]]; then
-            echo "name=release/next" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=release/next-${BRANCH//\//-}" >> "$GITHUB_OUTPUT"
-          fi
       - uses: zeabur-oss/.github/actions/bot-pr@bc2fba94d807c947f554f3b75be5623d86473067 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
-          branch: ${{ steps.branch.outputs.name }}
+          branch: release/next-${{ github.ref_name }}
           title: "chore(release): ${{ steps.knope.outputs.tag }}"
           body: ${{ steps.notes.outputs.body }}
 
