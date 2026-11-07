@@ -82,11 +82,12 @@ every pull request: a `feat`, `fix` or `perf` title, or any with `!`, needs a ch
 label `changelog: none`, and each change file must name a package of `knope.toml` with `major`,
 `minor`, `patch` or a type of the package's `extra_changelog_sections` (such as `security` for a
 `### Security` section, which knope releases as a patch) and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
-`bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` from
-`release-pr/<branch>` into the branch it ran on, as zeabur-oss-bot; its inputs are `version`,
-`prerelease` (a label such as `rc`), `check` and `runner`. On `main` or a maintenance branch
-`release/X.Y`, the merged release pull request is tagged by the bot, whose tag starts the
-repository's release. `release/X.Y` takes only `vX.Y.*` tags. Both run `zeabur-oss-release` from the caller's `bun.lock`.
+`bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` into
+the branch it ran on as zeabur-oss-bot, from `release/next` on `main` and from
+`release/next-maint-vX.Y` on a maintenance branch `maint/vX.Y`; its inputs are `version`,
+`prerelease` (a label such as `rc`), `check` and `runner`. On `main` or `maint/vX.Y`, the merged
+release pull request is tagged by the bot, whose tag starts the repository's release.
+`maint/vX.Y` takes only `vX.Y.*` tags. Both run `zeabur-oss-release` from the caller's `bun.lock`.
 
 The repository needs the label `changelog: none`, and a tag ruleset that lets zeabur-oss-bot create
 `v*` tags while nobody may move or delete them.
@@ -274,7 +275,7 @@ on:
         description: "Pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release"
         default: ""
   push:
-    branches: [main, "release/*"]
+    branches: [main, "maint/*"]
 permissions:
   contents: read
 concurrency:
@@ -332,12 +333,13 @@ release and a `minor` change a patch.
 When `main` already has changes for the next minor release, release fixes for the current one from
 a maintenance branch:
 
-1. Create `release/X.Y` from the tag `vX.Y.0`, and add `refs/heads/release/*` to the branch
-   ruleset that protects `main`.
+1. Create `maint/vX.Y` from the tag `vX.Y.0`, and add `refs/heads/maint/*` to the branch ruleset
+   that protects `main`. Maintenance branches don't start with `release/`, which holds the release
+   pull requests' branches.
 2. Merge each fix into `main` first. Then open a pull request that cherry-picks it, with its change
-   file, into `release/X.Y`.
-3. Run the Release pull request workflow on `release/X.Y`. The tag must be on `main` or on the
-   `release/X.Y` its version names; otherwise the release stops before building.
+   file, into `maint/vX.Y`.
+3. Run the Release pull request workflow on `maint/vX.Y`. The tag must be on `main` or on the
+   `maint/vX.Y` its version names; otherwise the release stops before building.
 4. When publishing the draft of an older line, clear **Set as latest** if a newer minor release
    is out.
 5. Open a pull request into `main` that adds the release's `CHANGELOG.md` section and deletes the
