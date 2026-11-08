@@ -18,6 +18,11 @@ that starts with `set -euo pipefail` and `cd "$(dirname "$0")/../.."`.
   per job with Swatinem/rust-cache, keyed on the dev shell's `rustc`. Only runs on `main` save it;
   a cache saved on a pull request or merge queue ref can't be read from any other ref. The
   scheduled run keeps the caches of the merge-queue-only jobs current.
+- `nix-store: restore` restores the Nix store from main's cache (cache-nix-action) before the first
+  `nix develop`, so the dev shells and tools built from source are not built again.
+  `nix-store: save` goes to the one job that builds all of them, such as `nix develop -c true`
+  and `nix develop .#<shell> -c true` for each shell; on main it saves the store at the end.
+  The key is the lock file, and only that job saves.
 - Jobs that need a minute or less of work share a runner: `lint.sh` runs the formatters, linters
   and other short checks one after another.
 - Slow jobs run only in the merge queue, on a schedule, a manual run or a tag, with

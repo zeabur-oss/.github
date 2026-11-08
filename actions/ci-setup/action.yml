@@ -1,8 +1,15 @@
 name: CI setup
 description: >-
-  Installs Nix and, with rust-cache, caches Cargo's build output for the dev shell's Rust
-  toolchain.
+  Installs Nix, optionally restores the Nix store from main's cache, and with rust-cache caches
+  Cargo's build output for the dev shell's Rust toolchain.
 inputs:
+  nix-store:
+    description: >-
+      "restore" restores the Nix store that a "save" job on main kept, keyed on flake.lock, before
+      anything is built. "save" restores nothing and, on main, saves the store when the job ends,
+      so give it to one job that builds everything the others need; two jobs saving the same key
+      race. "false" leaves the store alone.
+    default: "false"
   rust-cache:
     description: >-
       "true" to cache ~/.cargo and target/ with Swatinem/rust-cache, keyed on the job. Runs on main
@@ -13,6 +20,15 @@ runs:
   using: composite
   steps:
     - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
+    # Before the first `nix develop`, so that nothing the cache holds is built again. An older
+    # lock file's store still restores by prefix; only a "save" job writes, and it starts empty so
+    # no garbage collection is needed.
+    - if: inputs.nix-store != 'false'
+      uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+      with:
+        primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}
+        restore-prefixes-first-match: ${{ inputs.nix-store == 'restore' && format('nix-{0}-{1}-', runner.os, runner.arch) || '' }}
+        save: ${{ inputs.nix-store == 'save' && github.ref == 'refs/heads/main' }}
     # rust-cache keys on `rustc -vV`, so use the dev shell's toolchain. The path comes from the
     # caller's own flake, which the job runs anyway.
     - if: inputs.rust-cache == 'true'
