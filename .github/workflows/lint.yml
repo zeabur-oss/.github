@@ -20,7 +20,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
-      - run: nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint
+      - run: nix develop -c scripts/ci/lint.sh
       - run: nix run nixpkgs#zizmor -- --offline --no-progress --min-severity medium .github actions
       - run: jq -e . default.json k3s.json >/dev/null
 
@@ -38,6 +38,24 @@ jobs:
         run: nix develop --command bun check release/ checks/
       - name: Tests, against a registry in memory with images docker saves
         run: nix develop --command bun test release/
+
+  skills:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
+      - run: nix develop -c scripts/ci/skills.sh
+
+  prose:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
+      - run: nix develop -c scripts/ci/prose.sh
 
   dco:
     uses: ./.github/workflows/dco.yml

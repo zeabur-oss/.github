@@ -28,3 +28,9 @@ only when its pin moves:
 [`zeabur-oss-release`](release/README.md); run them locally with `nix develop`, then `actionlint`,
 `bun install`, `bun fmt --check .`, `bun check release/ checks/` and `bun test release/` (with Docker). Without the dev shell, actionlint alone is
 `nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint`.
+
+## Changing a shared skill
+
+Skills reach a repository the same way, with its Update workflow. [AGENTS.md](AGENTS.md) covers
+how to write one and the `skills`, `lint` and `prose` jobs; run them with
+`nix develop -c scripts/ci/<job>.sh`.
