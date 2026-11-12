@@ -44,50 +44,9 @@
       "enabled": false
     },
     {
-      "description": "K3s moves when its stable channel does, which is what Zeabur's installer installs by default. A release reaches that channel only after K3s has tried it, so there is no extra wait. The test images and the documented release move in one pull request.",
-      "matchDatasources": ["custom.k3s-stable", "custom.k3s-stable-image"],
-      "groupName": "k3s",
+      "description": "Our own packages and releases (@zeabur-oss/* on npm, zeabur-oss/* tags and releases) move as soon as they are published; third-party packages wait seven days.",
+      "matchPackageNames": ["@zeabur-oss/**", "zeabur-oss/**"],
       "minimumReleaseAge": null
-    }
-  ],
-  "customDatasources": {
-    "k3s-stable": {
-      "defaultRegistryUrlTemplate": "https://update.k3s.io/v1-release/channels",
-      "transformTemplates": [
-        "{\"releases\": [{\"version\": $$.(data[id = 'stable'].latest), \"changelogUrl\": $join([\"https://github.com/k3s-io/k3s/releases/tag/\", data[id = 'stable'].latest])}], \"sourceUrl\": \"https://github.com/k3s-io/k3s\", \"homepage\": \"https://k3s.io/\"}"
-      ]
-    },
-    "k3s-stable-image": {
-      "defaultRegistryUrlTemplate": "https://update.k3s.io/v1-release/channels",
-      "transformTemplates": [
-        "{\"releases\": [{\"version\": $replace($$.(data[id = 'stable'].latest), '+', '-'), \"changelogUrl\": $join([\"https://github.com/k3s-io/k3s/releases/tag/\", data[id = 'stable'].latest])}], \"sourceUrl\": \"https://github.com/k3s-io/k3s\", \"homepage\": \"https://k3s.io/\"}"
-      ]
-    }
-  },
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "The rancher/k3s image of the cluster tests: scripts, xtask and CONTRIBUTING.md.",
-      "managerFilePatterns": [
-        "/^CONTRIBUTING\\.md$/",
-        "/^scripts/.+\\.sh$/",
-        "/^xtask/.+\\.rs$/"
-      ],
-      "matchStrings": ["rancher/k3s:(?<currentValue>v[0-9.]+-k3s[0-9]+)"],
-      "depNameTemplate": "k3s",
-      "datasourceTemplate": "custom.k3s-stable-image",
-      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-k3s(?<build>\\d+)$"
-    },
-    {
-      "customType": "regex",
-      "description": "The K3s release the docs install with INSTALL_K3S_VERSION.",
-      "managerFilePatterns": ["/^docs/.+\\.mdx?$/", "/^README\\.md$/"],
-      "matchStrings": [
-        "INSTALL_K3S_VERSION=(?<currentValue>v[0-9.]+\\+k3s[0-9]+)"
-      ],
-      "depNameTemplate": "k3s",
-      "datasourceTemplate": "custom.k3s-stable",
-      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
     }
   ]
 }
