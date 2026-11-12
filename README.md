@@ -1,7 +1,8 @@
 # zeabur-oss/.github
 
 The CI setup action and the zizmor, DCO, changeset, release pull request, release and update
-workflows every zeabur-oss repository calls, and the shared Renovate preset. A repository keeps
+workflows every zeabur-oss repository calls, the shared Renovate preset and the shared agent
+skills. A repository keeps
 what is its own in its CI workflow and scripts; what is here only checks out, installs Nix, caches
 and uploads.
 
@@ -105,9 +106,8 @@ permission of its own.
 `update.yml` opens one pull request, `update/zeabur-oss`, as zeabur-oss-bot. It moves every pin of
 this repository to one commit: the flake input in `flake.lock` (its locked revision is the commit
 for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in `package.json` with
-`bun install`. Then it copies each skill in `.claude/skills` that `zeabur-oss/skills` also has, by
-directory name, again from its `main`. To use a shared skill, copy its directory from
-`zeabur-oss/skills/skills/` into `.claude/skills/`. Nothing is dispatched on a push to `main`; a
+`bun install`. Then it copies each skill in `.claude/skills` that [`skills/`](#skills) also has, by
+directory name, again from that commit. Nothing is dispatched on a push to `main`; a
 caller runs it on Monday 02:30 in Asia/Taipei, or by hand with `workflow_dispatch` when a change is
 urgent. Renovate leaves these pins alone. This repository and each caller need the bot installed,
 `ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to them, and Workflows write for
@@ -156,6 +156,39 @@ gh release download <version> --repo zeabur-oss/<repo> --dir downloaded
 node_modules/.bin/zeabur-oss-release verify-assets downloaded
 bun scripts/release.ts verify <version> linux arm64 downloaded
 ```
+
+### Skills
+
+[`skills/`](skills) holds the agent skills every zeabur-oss repository shares, in the
+[Agent Skills](https://agentskills.io/) format. To use one, copy its directory into the
+repository's `.claude/skills/`; the Update workflow keeps the copy current. A repository's own
+skill keeps its commands, paths and terms, has a name not used here, and points to the shared skill
+for the rest.
+
+| Skill                                                                  | Use it to                                                                                                                |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`zeabur-writing`](skills/zeabur-writing/SKILL.md)                     | Write or review docs, interface strings and translations in English, zh-TW and zh-CN, with a Vale style that checks them |
+| [`zeabur-oss-workflow`](skills/zeabur-oss-workflow/SKILL.md)           | Branch, commit with a DCO sign-off, open and squash-merge pull requests, release, file issues                            |
+| [`zeabur-oss-dependencies`](skills/zeabur-oss-dependencies/SKILL.md)   | Add or update a Rust crate or Bun package under the shared supply-chain policy                                           |
+| [`zeabur-oss-spec-work`](skills/zeabur-oss-spec-work/SKILL.md)         | Implement security- or protocol-relevant behaviour from the specification, with citations and adversarial tests          |
+| [`zeabur-oss-cluster-tests`](skills/zeabur-oss-cluster-tests/SKILL.md) | Run and write Kubernetes integration and end-to-end tests on a disposable cluster in a VM                                |
+| [`zeabur-oss-ci`](skills/zeabur-oss-ci/SKILL.md)                       | Understand the shared CI and release workflows and investigate a failed run                                              |
+| [`zeabur-oss-rust`](skills/zeabur-oss-rust/SKILL.md)                   | Follow the conventions every zeabur-oss Rust workspace shares                                                            |
+| [`zeabur-oss-standards`](skills/zeabur-oss-standards/SKILL.md)         | Review a change against the shared engineering standards                                                                 |
+| [`no-ai-flavour`](skills/no-ai-flavour/SKILL.md)                       | Keep code comments, copy and visuals free of the generic AI-made feel                                                    |
+| [`story-writing`](skills/story-writing/SKILL.md)                       | Write or revise a blog post, launch note, technical article or other long-form piece                                     |
+
+`zeabur-writing` ships a [Vale](https://vale.sh) style in
+[`skills/zeabur-writing/vale`](skills/zeabur-writing/vale). To check a repository's text with it,
+copy [`vale.ini`](skills/zeabur-writing/vale/vale.ini) to `.vale.ini` at the repository root with
+`StylesPath = .claude/skills/zeabur-writing/vale`, and put Vale in the dev shell. `.mdx` files
+also need `mdx2vast`, which nixpkgs does not have; this flake builds it:
+
+```nix
+packages = [ pkgs.vale inputs.oss.packages.${system}.mdx2vast ];
+```
+
+[AGENTS.md](AGENTS.md) covers how to write a skill and change the Vale style.
 
 ## Runners
 

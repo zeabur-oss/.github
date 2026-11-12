@@ -1,5 +1,5 @@
 {
-  description = "zeabur-oss shared CI and release";
+  description = "zeabur-oss shared CI, release and agent skills";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -53,7 +53,21 @@
             knope
           ];
         };
-        default = base;
+        # This repository's own checks: the shared skills and their Vale style.
+        default = pkgs.mkShell {
+          inputsFrom = [ base ];
+          packages = [
+            pkgs.vale
+            pkgs.yq-go
+            self.packages.${pkgs.stdenv.hostPlatform.system}.mdx2vast
+          ];
+        };
+      });
+
+      # Vale lints .mdx through mdx2vast. A repository that checks its text with the zeabur-writing
+      # style adds `pkgs.vale` and `inputs.oss.packages.${system}.mdx2vast` to its dev shell.
+      packages = forAll (pkgs: {
+        mdx2vast = pkgs.callPackage ./nix/mdx2vast.nix { };
       });
     };
 }
