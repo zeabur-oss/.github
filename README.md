@@ -121,6 +121,12 @@ Asia/Taipei, one pull request per update. Lock file maintenance runs in the same
 Renovate documentation, a vulnerability-fix pull request ignores `schedule` and `prHourlyLimit`.
 A repository's own groups and package rules override these.
 
+Third-party releases wait seven days (`minimumReleaseAge`); our own, `@zeabur-oss/*` on npm and
+`zeabur-oss/*` tags and releases, move as soon as they are published. A repository that pins the
+`rancher/k3s` test image or documents `INSTALL_K3S_VERSION` also extends
+`github>zeabur-oss/.github:k3s` and enables `custom.regex`: `k3s.json` moves both with K3s's
+stable channel, without the wait.
+
 ### Signatures
 
 Keyless signatures and attestations name the workflow that ran, which is this repository's
