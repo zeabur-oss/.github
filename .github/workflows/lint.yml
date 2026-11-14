@@ -12,9 +12,12 @@ concurrency:
   group: lint-${{ github.ref }}
   cancel-in-progress: true
 
+# A job whose runs-on can name Instabox (instabox-<size>) runs on a fresh Instabox machine when the
+# organization variable CI_INSTABOX is "true". Otherwise, and for release-cli, which builds images
+# with Docker, jobs run on GitHub's runners. The reusable workflows keep their runners.
 jobs:
   lint:
-    runs-on: ubuntu-26.04-arm
+    runs-on: ${{ vars.CI_INSTABOX == 'true' && 'instabox-small' || 'ubuntu-26.04-arm' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,7 +43,7 @@ jobs:
         run: nix develop --command bun test release/
 
   skills:
-    runs-on: ubuntu-26.04-arm
+    runs-on: ${{ vars.CI_INSTABOX == 'true' && 'instabox-small' || 'ubuntu-26.04-arm' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,7 +52,7 @@ jobs:
       - run: nix develop -c scripts/ci/skills.sh
 
   prose:
-    runs-on: ubuntu-26.04-arm
+    runs-on: ${{ vars.CI_INSTABOX == 'true' && 'instabox-small' || 'ubuntu-26.04-arm' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
