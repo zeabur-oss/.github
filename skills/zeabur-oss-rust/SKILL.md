@@ -17,9 +17,10 @@ The repository's dev skill has its crate table, binaries, extra checks and gener
   targets. `flake.nix` builds it with `rust-bin.fromRustupToolchainFile`, and rustup reads the same
   file. The nightly enables the parallel front end (`-Zthreads`), current clippy lints and rustfmt's
   import ordering. No `#![feature]` is used.
-- Renovate cannot move the nightly date. Change `channel` by hand (run `nix flake update rust-overlay`
-  if the locked overlay lacks that date) and fix new clippy lints on that pull request.
-  The date is the same in every zeabur-oss Rust repository; bump them together.
+- Renovate proposes the new nightly date in `rust-toolchain.toml` (its `rust-toolchain` manager, after the
+  preset's seven-day wait). On that pull request, check that `nix flake update rust-overlay` resolves the
+  date and fix new clippy lints. The date is the same in every zeabur-oss Rust repository, so the four
+  bump pull requests merge together.
 - Release binaries are built with `trim-paths = "all"`, so they carry no build-host paths.
 - Optional compiler cache: install [kache](https://ninja.kunobi.com/docs/kache/getting-started/c-cpp)
   and set `RUSTC_WRAPPER=kache` in your shell profile; `nix develop` keeps it. Release and image
