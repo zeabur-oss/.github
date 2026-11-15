@@ -19,6 +19,7 @@ The repository's dev skill has its crate table, binaries, extra checks and gener
   import ordering. No `#![feature]` is used.
 - Renovate cannot move the nightly date. Change `channel` by hand (run `nix flake update rust-overlay`
   if the locked overlay lacks that date) and fix new clippy lints on that pull request.
+  The date is the same in every zeabur-oss Rust repository; bump them together.
 - Release binaries are built with `trim-paths = "all"`, so they carry no build-host paths.
 - Optional compiler cache: install [kache](https://ninja.kunobi.com/docs/kache/getting-started/c-cpp)
   and set `RUSTC_WRAPPER=kache` in your shell profile; `nix develop` keeps it. Release and image
