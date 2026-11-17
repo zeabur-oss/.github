@@ -106,8 +106,9 @@ and the version to the manifest in `versioned_files`.
 1. Run the Release pull request workflow, with `prerelease: rc` for a release candidate. Check the
    pull request it opens, and edit `CHANGELOG.md` on its branch if needed.
 2. To rehearse, run the Release workflow by hand with the version. A rehearsal publishes nothing.
-3. Merge the release pull request. zeabur-oss-bot tags it and leaves a draft release, and the tag's
-   Release workflow adds the assets.
+3. Merge the release pull request. zeabur-oss-bot tags it and creates a draft release, and the
+   tag's Release workflow adds the assets. A tag pushed by hand needs
+   `gh release create <tag> --draft` first.
 4. Check the draft and publish it. A published release can't change.
 
 A tag is `vX.Y.Z` ([SemVer](https://semver.org/spec/v2.0.0.html)). `vX.Y.Z-rc.N` is a pre-release
@@ -220,6 +221,18 @@ cosign verify <image>@<digest> \
   --certificate-github-workflow-ref refs/tags/<version>
 gh attestation verify <file> --repo zeabur-oss/<repo> \
   --signer-workflow zeabur-oss/.github/.github/workflows/release.yml
+```
+
+If the `verify` job fails because of the check itself, fix the check and run it again from a
+checkout, in the dev shell, after `bun install`:
+
+```sh
+export RELEASE_CERT_IDENTITY_REGEXP='^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
+  RELEASE_SIGNER_WORKFLOW=zeabur-oss/.github/.github/workflows/release.yml \
+  RELEASE_SOURCE_REPOSITORY=zeabur-oss/<repo> RELEASE_SOURCE_REF=refs/tags/<version>
+gh release download <version> --repo zeabur-oss/<repo> --dir downloaded
+bun x zeabur-oss-release verify-assets downloaded
+bun scripts/release.ts verify <version> linux arm64 downloaded
 ```
 
 ## Update
