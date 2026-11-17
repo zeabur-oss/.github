@@ -14,10 +14,10 @@ A repository's `.github/workflows/ci.yml` lists its jobs. Each one checks out, r
 another dev shell), so a job runs the same way locally. Each `scripts/ci/<job>.sh` is plain bash
 that starts with `set -euo pipefail` and `cd "$(dirname "$0")/../.."`.
 
-- `actions/ci-setup` installs Nix. With `rust-cache: true` it also caches `~/.cargo` and `target/`
-  per job with Swatinem/rust-cache, keyed on the dev shell's `rustc`. Only runs on `main` save it;
-  a cache saved on a pull request or merge queue ref can't be read from any other ref. The
-  scheduled run keeps the caches of the merge-queue-only jobs current.
+- `actions/ci-setup` installs Nix. With `rust-cache: true` it also installs kache, whose cache is
+  one for the repository, and the job runs Cargo as `kache cargo -- <command>`. Only runs of
+  `main` save it; a cache saved on a pull request or merge queue ref can't be read from any other
+  ref. The scheduled run keeps it current for the merge-queue-only jobs.
 - Jobs that need a minute or less of work share a runner: `lint.sh` runs the formatters, linters
   and other short checks one after another.
 - Slow jobs run only in the merge queue, on a schedule, a manual run or a tag, with
