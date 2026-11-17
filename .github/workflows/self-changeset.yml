@@ -15,3 +15,5 @@ concurrency:
 jobs:
   changeset:
     uses: ./.github/workflows/changeset.yml
+    with:
+      runner: instabox-small

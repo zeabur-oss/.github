@@ -22,5 +22,6 @@ jobs:
     with:
       version: ${{ inputs.version }}
       check: false
+      runner: instabox-small
     secrets:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
