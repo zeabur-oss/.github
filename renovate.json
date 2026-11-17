@@ -1,5 +1,24 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>zeabur-oss/.github"],
-  "enabledManagers": ["github-actions"]
+  "enabledManagers": ["github-actions", "custom.regex"],
+  "customManagers": [
+    {
+      "description": "The version input of Mic92/hestia, which the action downloads next to its own pin.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/", "/^actions/.+/action\\.ya?ml$/"],
+      "matchStrings": [
+        "uses: Mic92/hestia@\\S+ # \\S+\\n\\s+with:\\n\\s+version: (?<currentValue>v\\S+)"
+      ],
+      "depNameTemplate": "Mic92/hestia",
+      "datasourceTemplate": "github-releases"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The action pin and its version input move in one pull request.",
+      "matchPackageNames": ["Mic92/hestia"],
+      "groupName": "hestia"
+    }
+  ]
 }
