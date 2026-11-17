@@ -86,7 +86,7 @@ jobs:
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
       - run: nix develop --command bun install --frozen-lockfile
       - id: version
-        name: The version is the manifests', with a CHANGELOG.md section, on main or maint/vX.Y
+        name: The version is the manifests', with a CHANGELOG.md section, on main
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
         run: |
@@ -96,10 +96,8 @@ jobs:
           nix develop --command bun scripts/release.ts check "$VERSION"
           nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            line=$(cut -d. -f1-2 <<<"$VERSION")
             git merge-base --is-ancestor HEAD origin/main ||
-              git merge-base --is-ancestor HEAD "origin/maint/$line" 2>/dev/null ||
-              { echo "::error::$VERSION is not on main or maint/$line"; exit 1; }
+              { echo "::error::$VERSION is not on main"; exit 1; }
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
