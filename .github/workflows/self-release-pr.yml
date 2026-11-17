@@ -20,6 +20,7 @@ jobs:
   release-pr:
     uses: ./.github/workflows/release-pr.yml
     with:
+      name: Zeabur Workflows
       version: ${{ inputs.version }}
       check: false
       runner: instabox-small

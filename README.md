@@ -41,7 +41,7 @@ One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell
 | `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes.                                                        |
 | `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first.                                                           |
 
-Inputs of the shared `release.yml`: `name`, `docs` (the documentation the notes link to), `version`, `platforms` (JSON array of
+Inputs of the shared `release.yml`: `version`, `platforms` (JSON array of
 `{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
 (default `platforms`), `runner`, `signing-environment` and `telemetry-key`. `build` may leave logs in `$CI_ARTIFACTS`; they
 are uploaded when it fails.
@@ -86,7 +86,7 @@ label `changelog: none`, and each change file must name a package of `knope.toml
 `### Security` section, which knope releases as a patch) and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
 `bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` into
 the branch it ran on (`main` or a maintenance branch `maint/vX.Y`) as zeabur-oss-bot, from
-`release/next`, one at a time; its inputs are `version`,
+`release/next`, one at a time; its inputs are `name` (the product, for the release's title), `docs`, `version`,
 `prerelease` (a label such as `rc`), `check` and `runner`. On `main` or `maint/vX.Y`, the merged
 release pull request is tagged by the bot, whose tag starts the repository's release.
 `maint/vX.Y` takes only `vX.Y.*` tags. Both run `zeabur-oss-release` from the caller's `bun.lock`.
@@ -245,7 +245,6 @@ jobs:
       id-token: write
       attestations: write
     with:
-      name: Zeabur Example
       version: ${{ inputs.version }}
 ```
 
@@ -287,6 +286,8 @@ jobs:
   release-pr:
     uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # main
     with:
+      name: Zeabur Example
+      docs: https://oss.zeabur.com/docs/example/
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
     secrets:
