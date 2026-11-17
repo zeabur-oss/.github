@@ -1,5 +1,6 @@
 {
   "name": "@zeabur-oss/release",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": "./release/index.ts",
@@ -8,6 +9,7 @@
     "zeabur-oss-unsafe-report": "./checks/unsafe-report.ts"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.4"
+    "@types/bun": "^1.4.4",
+    "@zeabur-oss/release": "link:."
   }
 }
