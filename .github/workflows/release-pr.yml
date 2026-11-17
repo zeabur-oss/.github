@@ -12,6 +12,14 @@ name: Release pull request
 on:
   workflow_call:
     inputs:
+      name:
+        description: The product, the release's title before the version (Zeabur Builder).
+        type: string
+        required: true
+      docs:
+        description: The documentation the notes end with a link to (https://oss.zeabur.com/docs/builder/); empty for none.
+        type: string
+        default: ""
       version:
         description: The version to release instead of the one the change files give (v0.2.0); empty for theirs.
         type: string
@@ -110,15 +118,19 @@ jobs:
           private-key: ${{ secrets.private-key }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-      - name: Tag the commit and leave a draft release with the CHANGELOG.md section
+      - name: Tag the commit and leave the draft release, its title and notes
         if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           TAG: ${{ steps.release.outputs.tag }}
+          NAME: ${{ inputs.name }}
+          DOCS: ${{ inputs.docs }}
         run: |
           gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
-          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$TAG" >notes.md
+          docs=()
+          [[ -z "$DOCS" ]] || docs=(--docs "$DOCS")
+          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$TAG" "${docs[@]}" >notes.md
           # GitHub never marks a pre-release latest.
           prerelease=()
           [[ "$TAG" != *-* ]] || prerelease=(--prerelease)
-          gh release create "$TAG" --verify-tag --draft "${prerelease[@]}" --title "$TAG" --notes-file notes.md
+          gh release create "$TAG" --verify-tag --draft "${prerelease[@]}" --title "$NAME $TAG" --notes-file notes.md
