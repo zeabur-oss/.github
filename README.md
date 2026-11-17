@@ -159,7 +159,7 @@ bun scripts/release.ts verify <version> linux arm64 downloaded
 
 ## Runners
 
-Jobs run on the newest Ubuntu, `ubuntu-26.04-arm`. A job that only runs a short script without Nix
+Jobs run on Instabox, `instabox-small` by default. A job that only runs a short script without Nix
 (a check of the pull request, a summary) runs on `ubuntu-slim`. `ubuntu-26.04` and macOS are only
 for work that needs that platform, such as an amd64 build or e2e run.
 
