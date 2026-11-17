@@ -2,6 +2,6 @@
 default: patch
 ---
 
-# The release pull request is formatted
+# knope formats the release it writes
 
-After knope writes `CHANGELOG.md` and the versions, the Release pull request workflow runs `bun fmt --changed=HEAD` in the caller's dev shell, so the release pull request passes the caller's format check.
+A caller's `knope.toml` formats what `PrepareRelease` wrote: add a `Command` step after it, such as `bun fmt CHANGELOG.md package.json` (list the other manifests it changes). Without it the release pull request can fail the caller's format check.

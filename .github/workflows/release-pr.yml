@@ -59,8 +59,6 @@ jobs:
         run: |
           tag=$(nix develop --command bun x zeabur-oss-release prepare-release --version="$VERSION" --prerelease="$PRERELEASE")
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      # knope writes CHANGELOG.md and the manifests; format what it changed like the rest of the repository.
-      - run: nix develop --command bun fmt --changed=HEAD
       - if: inputs.check
         env:
           TAG: ${{ steps.knope.outputs.tag }}
