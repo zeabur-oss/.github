@@ -3,10 +3,9 @@
 The steps of a release that every zeabur-oss repository does the same way: push images and charts
 by digest, sign, write and sign `SHA256SUMS`, copy a `CHANGELOG.md` section into the release notes,
 and verify a release as a user would. It is one TypeScript file run by Bun, and each step is a
-call to crane, helm, cosign or gh. A repository's `scripts/release.ts` keeps what is its own (what
-to build, how to smoke it, which assets exist) and imports this for the rest. The shared
-`release.yml` runs `notes`, `checksums` and `verify-assets` itself, as the `zeabur-oss-release`
-command of the same package.
+call to crane, helm, cosign or gh. A repository's own `release.yml` runs them as
+`bun x zeabur-oss-release <command>` and keeps what is its own: what to build, how to smoke it,
+which assets exist.
 
 ## Getting it
 
@@ -110,8 +109,8 @@ zeabur-oss-release release-of "chore(release): v0.1.2 (#13)"            # the ta
 - **The registry holds what was tested.** `push-chart` checks that the chart the registry
   serves is the packaged file; `verify-image` checks that the index lists exactly the recorded
   platform images.
-- **One signer identity.** Signatures name this repository's `release.yml`, run for the
-  released repository at its tag.
+- **One signer identity.** Signatures name the released repository's own `release.yml`, run at
+  its tag.
 - **The notes are the changelog section, as written.** `CHANGELOG.md` uses the headings knope
   writes (`## 0.1.1 (2026-10-28)`) and keeps each paragraph and list item on one line, since a
   release body shows every line break. A pre-release has its own section. The body ends with one

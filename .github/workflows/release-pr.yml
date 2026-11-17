@@ -1,9 +1,8 @@
 name: Release pull request
 
 # Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
-# version (knope.toml's prepare-release workflow, which may run the caller's own steps), the
-# caller's `bun scripts/release.ts check` confirms every manifest has it, and zeabur-oss-bot opens
-# `chore(release): vX.Y.Z` from release/next into main. One release pull request at a time: merge
+# version (knope.toml's prepare-release workflow, which may run the caller's own steps), and
+# zeabur-oss-bot opens `chore(release): vX.Y.Z` from release/next into main. One release pull request at a time: merge
 # or close it before preparing another. With a pre-release label, knope writes vX.Y.Z-<label>.N
 # with every change since the last normal release and keeps the change files for it. Once that pull
 # request is merged, zeabur-oss-bot tags the commit and leaves a draft release with the CHANGELOG.md
@@ -27,10 +26,6 @@ on:
         description: The pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release.
         type: string
         default: ""
-      check:
-        description: Run `bun scripts/release.ts check <version>` on what knope wrote.
-        type: boolean
-        default: true
       runner:
         description: The runner of the jobs, which run in the caller's dev shell.
         type: string
@@ -64,11 +59,6 @@ jobs:
         run: |
           tag=$(nix develop --command bun x zeabur-oss-release prepare-release --version="$VERSION" --prerelease="$PRERELEASE")
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - name: Check the manifests have the version
-        if: inputs.check
-        env:
-          TAG: ${{ steps.knope.outputs.tag }}
-        run: nix develop --command bun scripts/release.ts check "$TAG"
       - id: notes
         name: Write the pull request body
         env:

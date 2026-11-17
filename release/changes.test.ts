@@ -118,7 +118,7 @@ name = "prepare-release"
 [[workflows.steps]]
 type = "PrepareRelease"
 
-# A caller's own step, such as \`bun scripts/release.ts bump\`, may print.
+# A caller's own step may print.
 [[workflows.steps]]
 type = "Command"
 command = "echo set $version"

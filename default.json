@@ -35,18 +35,22 @@
       "groupName": "kubernetes crates"
     },
     {
-      "description": "The pins of zeabur-oss/.github move in the Update workflow: the shared workflows and actions, @zeabur-oss/release in package.json and the flake input in flake.lock.",
+      "description": "The pins of zeabur-oss/.github (each uses:, @zeabur-oss/release in package.json and a flake input that names a commit) move to the head of its main in one pull request, without the seven-day wait.",
       "matchPackageNames": [
         "zeabur-oss/.github",
         "@zeabur-oss/release",
         "https://github.com/zeabur-oss/.github"
       ],
-      "enabled": false
+      "minimumReleaseAge": null,
+      "groupName": "zeabur-oss/.github"
     },
     {
       "description": "Our own packages and releases (@zeabur-oss/* on npm, zeabur-oss/* tags and releases) move as soon as they are published; third-party packages wait seven days.",
       "matchPackageNames": ["@zeabur-oss/**", "zeabur-oss/**"],
       "minimumReleaseAge": null
     }
-  ]
+  ],
+  "nix": {
+    "enabled": true
+  }
 }
