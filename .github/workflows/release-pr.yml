@@ -52,7 +52,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          tag=$(nix develop --command node_modules/.bin/zeabur-oss-release prepare-release --version="$VERSION" --prerelease="$PRERELEASE")
+          tag=$(nix develop --command bun x zeabur-oss-release prepare-release --version="$VERSION" --prerelease="$PRERELEASE")
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - if: inputs.check
         env:
@@ -66,7 +66,7 @@ jobs:
             echo 'body<<EOF'
             echo "Merging this tags the merge commit $TAG, which starts the release. Edit CHANGELOG.md on this branch first if the section should read differently."
             echo
-            nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$TAG"
+            nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$TAG"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
       - uses: zeabur-oss/.github/actions/bot-pr@bc2fba94d807c947f554f3b75be5623d86473067 # main
@@ -94,7 +94,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           subject=$(git log -1 --format=%s)
-          tag=$(nix develop --command node_modules/.bin/zeabur-oss-release release-of "$subject")
+          tag=$(nix develop --command bun x zeabur-oss-release release-of "$subject")
           if [[ -n "$tag" && "$BRANCH" != main && "$tag" != "${BRANCH#maint/}."* ]]; then
             echo "::error::$BRANCH releases only ${BRANCH#maint/}.*, not $tag"
             exit 1

@@ -12,7 +12,7 @@ import {
   prepareRelease,
   releaseOf,
 } from "./changes";
-import { Failure } from "./zeabur-oss-release";
+import { Failure } from "./index";
 
 describe("packages", () => {
   test("a single [package] is default", () => {
@@ -146,7 +146,7 @@ variables = { "$version" = "Version" }
     await reset();
   });
   test("knope's output stays out of the printed tag", async () => {
-    const cli = join(cwd, "release/zeabur-oss-release.ts");
+    const cli = join(cwd, "release/cli.ts");
     const out = await $`bun ${cli} prepare-release`.text();
     expect(out).toBe("v0.1.2\n");
     await reset();

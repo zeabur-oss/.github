@@ -106,7 +106,7 @@ jobs:
           [[ "$VERSION" == v* && "$VERSION" != *+* ]] ||
             { echo "::error::$VERSION is not v and SemVer without build metadata"; exit 1; }
           nix develop --command bun scripts/release.ts check "$VERSION"
-          nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
+          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
             line=$(cut -d. -f1-2 <<<"$VERSION")
             git merge-base --is-ancestor HEAD origin/main ||
@@ -284,10 +284,10 @@ jobs:
         run: |
           mkdir -p release/assets
           nix develop --command bun scripts/release.ts assets "$VERSION" artifacts release/assets
-          nix develop --command node_modules/.bin/zeabur-oss-release checksums release/assets
+          nix develop --command bun x zeabur-oss-release checksums release/assets
           docs=()
           [[ -z "$DOCS" ]] || docs=(--docs "$DOCS")
-          nix develop --command node_modules/.bin/zeabur-oss-release notes CHANGELOG.md "$VERSION" "${docs[@]}" >release/notes.md
+          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$VERSION" "${docs[@]}" >release/notes.md
       - name: Attest the release assets' provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -338,5 +338,5 @@ jobs:
           RELEASE_SOURCE_REF: refs/tags/${{ needs.prepare.outputs.version }}
         run: |
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
-          nix develop --command node_modules/.bin/zeabur-oss-release verify-assets downloaded
+          nix develop --command bun x zeabur-oss-release verify-assets downloaded
           nix develop --command bun scripts/release.ts verify "$VERSION" "$OS" "$ARCH" downloaded

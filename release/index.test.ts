@@ -32,7 +32,7 @@ import {
   verifyAssets,
   verifyChart,
   verifyImage,
-} from "./zeabur-oss-release";
+} from "./index";
 
 const digest = (c: string) => `sha256:${c.repeat(64)}`;
 
@@ -49,7 +49,7 @@ describe("scratch", () => {
   });
 
   test("is removed when the process ends", async () => {
-    const script = `import { scratch } from ${JSON.stringify(join(import.meta.dir, "zeabur-oss-release"))};
+    const script = `import { scratch } from ${JSON.stringify(join(import.meta.dir, "index"))};
 console.log((await scratch()).dir);`;
     const file = join(await mkdtemp(join(tmpdir(), "scratch-test-")), "run.ts");
     await writeFile(file, script);
@@ -250,7 +250,7 @@ describe("against a registry", () => {
     )
       await Bun.sleep(100);
     for (const arch of ["amd64", "arm64"]) {
-      await $`printf 'FROM scratch\nCOPY zeabur-oss-release.ts /\n' | docker build -q --platform linux/${arch} --tag release-test:${arch} --file - .`
+      await $`printf 'FROM scratch\nCOPY index.ts /\n' | docker build -q --platform linux/${arch} --tag release-test:${arch} --file - .`
         .cwd(import.meta.dir)
         .quiet();
       await $`docker image save --output ${join(work, `${arch}.tar`)} release-test:${arch}`;
@@ -392,7 +392,7 @@ describe("against a registry", () => {
 });
 
 describe("the command", () => {
-  const cli = join(import.meta.dir, "zeabur-oss-release.ts");
+  const cli = join(import.meta.dir, "cli.ts");
 
   test("notes prints the section and the docs link", async () => {
     const dir = await mkdtemp(join(tmpdir(), "release-notes-"));

@@ -1,9 +1,9 @@
 // Change files and release pull requests, on knope. A pull request that users notice adds a change
 // file in .changeset/; the Release pull request workflow turns the change files into the next
 // CHANGELOG.md section and version, and tags the merged release pull request. The shared
-// changeset.yml and release-pr.yml run these as the zeabur-oss-release command.
+// changeset.yml and release-pr.yml run these through cli.ts, the zeabur-oss-release command.
 import { $ } from "bun";
-import { Failure, section } from "./zeabur-oss-release";
+import { Failure, section } from "./index";
 
 function fail(message: string): never {
   throw new Failure(message);

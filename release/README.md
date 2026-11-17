@@ -81,7 +81,7 @@ release workflow sets.
 
 ## Command
 
-The release workflow runs three of the functions as `node_modules/.bin/zeabur-oss-release`:
+The release workflow runs three of the functions as `bun x zeabur-oss-release` (`release/cli.ts`):
 
 ```sh
 zeabur-oss-release notes CHANGELOG.md v0.1.1 --docs https://oss.zeabur.com/docs/builder/ >release/notes.md
