@@ -1,35 +1,30 @@
 name: Release
 
-# Tag vX.Y.Z or vX.Y.Z-<pre-release> on main or maint/vX.Y: build, smoke, publish by digest, sign,
-# attest, add the assets to the draft release that the Release pull request workflow left when it
-# tagged, with its title and notes. A maintainer publishes the draft. Manual run: rehearse without
-# publishing. No CI and no cache here: the branch's required checks already passed.
+# The second half of a release, called by a repository's Release workflow after release-build.yml,
+# on a pushed tag only: publish by digest, sign, attest, add the assets to the draft release that
+# the Release pull request workflow left when it tagged, with its title and notes, and verify the
+# draft. A maintainer publishes the draft. No CI and no cache here: the branch's required checks
+# already passed.
 #
 # Stages, each `bun scripts/release.ts <stage>` in the caller's dev shell, after `bun install`
 # (the caller's package.json pins @zeabur-oss/release, from release/ here):
-#   check   <version>                                 the version is the manifests'
-#   build   <version> <os> <arch> <dist>              build and smoke one platform
-#   sign    <version> <os> <arch> <dist>              with signing-environment, on macOS:
-#                                                     Developer ID and notarization
 #   publish <version> <artifacts> <published>         push by digest, sign, write subjects.json
 #   finish  <version> <os> <arch> <artifacts> <dist>  what needs the digests, such as installers
 #   assets  <version> <artifacts> <assets>            copy the release's files into <assets>
 #   verify  <version> <os> <arch> <downloaded>        check the images and charts of the draft
-# The workflow does the rest with the package's zeabur-oss-release command: the CHANGELOG.md section, SHA256SUMS and its signature, the notes, and verifying the assets. verify
-# gets the signer from the RELEASE_* env vars; build may leave logs in $CI_ARTIFACTS.
+# The workflow does the rest with the package's zeabur-oss-release command: SHA256SUMS and its
+# signature, and verifying the assets. verify gets the signer from the RELEASE_* env vars.
 on:
   workflow_call:
     inputs:
       version:
-        description: The version to rehearse (v0.1.1, v0.1.2-beta.1); empty for the pushed tag.
+        description: The version release-build.yml built (its version output).
         type: string
-        default: ""
+        required: true
       platforms:
-        description: JSON array of {os, arch, runner} to build, smoke and finish.
+        description: The platforms release-build.yml built (its platforms output), also the platforms a draft is verified on.
         type: string
-        default: >-
-          [{"os": "linux", "arch": "amd64", "runner": "ubuntu-26.04"},
-           {"os": "linux", "arch": "arm64", "runner": "ubuntu-26.04-arm"}]
+        required: true
       finish:
         description: Run the finish stage after publishing.
         type: boolean
@@ -42,34 +37,12 @@ on:
         description: The runner of the jobs that are not per platform.
         type: string
         default: ubuntu-26.04-arm
-      signing-environment:
-        description: >-
-          The environment holding the APPLE_* secrets; macOS builds of main and tags run in it
-          and are signed and notarized. Empty for none.
-        type: string
-        default: ""
       telemetry-key:
         description: >-
           A project key that tag builds compile in as ZEABUR_TELEMETRY_KEY, for programs that
           report usage; other builds get none. Empty for none.
         type: string
         default: ""
-    secrets:
-      APPLE_CERTIFICATE_P12:
-        description: The Developer ID Application certificate with its key, .p12 in base64.
-        required: false
-      APPLE_CERTIFICATE_PASSWORD:
-        description: The .p12's password.
-        required: false
-      APPLE_API_KEY_P8:
-        description: An App Store Connect API key for notarytool, the .p8's text.
-        required: false
-      APPLE_API_KEY_ID:
-        description: That key's ID.
-        required: false
-      APPLE_API_ISSUER_ID:
-        description: That key's issuer ID.
-        required: false
 
 permissions:
   contents: read
@@ -78,95 +51,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  prepare:
-    runs-on: ${{ inputs.runner }}
-    timeout-minutes: 30
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
-      - id: version
-        name: The version is the manifests', with a CHANGELOG.md section, on main or maint/vX.Y
-        env:
-          VERSION: ${{ inputs.version || github.ref_name }}
-        run: |
-          # The manifests take only SemVer; an image tag cannot hold the + of build metadata.
-          [[ "$VERSION" == v* && "$VERSION" != *+* ]] ||
-            { echo "::error::$VERSION is not v and SemVer without build metadata"; exit 1; }
-          nix develop --command bun scripts/release.ts check "$VERSION"
-          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$VERSION" >/dev/null
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            line=$(cut -d. -f1-2 <<<"$VERSION")
-            git merge-base --is-ancestor HEAD origin/main ||
-              git merge-base --is-ancestor HEAD "origin/maint/$line" 2>/dev/null ||
-              { echo "::error::$VERSION is not on main or maint/$line"; exit 1; }
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-  build:
-    name: build (${{ matrix.os }}-${{ matrix.arch }})
-    needs: prepare
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(inputs.platforms) }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
-    # The environment's branch rules keep the signing secrets to main and tags; a rehearsal on
-    # any other branch builds unsigned.
-    environment: >-
-      ${{ matrix.os == 'darwin' && (github.ref == 'refs/heads/main' ||
-          startsWith(github.ref, 'refs/tags/v')) && inputs.signing-environment || '' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
-      - name: Build and smoke
-        env:
-          ZEABUR_TELEMETRY_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && inputs.telemetry-key || '' }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-          OS: ${{ matrix.os }}
-          ARCH: ${{ matrix.arch }}
-          CI_ARTIFACTS: ${{ runner.temp }}/ci-artifacts
-        run: nix develop --command bun scripts/release.ts build "$VERSION" "$OS" "$ARCH" dist
-      # A step of its own, so the build never sees the secrets. Without them sign leaves the
-      # build as it is.
-      - name: Sign and notarize
-        if: matrix.os == 'darwin' && inputs.signing-environment != ''
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          OS: ${{ matrix.os }}
-          ARCH: ${{ matrix.arch }}
-          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-        run: nix develop --command bun scripts/release.ts sign "$VERSION" "$OS" "$ARCH" dist
-      - if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: logs-build-${{ matrix.os }}-${{ matrix.arch }}
-          path: ${{ runner.temp }}/ci-artifacts/
-          if-no-files-found: ignore
-          retention-days: 14
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: candidate-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/
-          if-no-files-found: error
-          retention-days: 7
-
   publish:
-    if: github.event_name == 'push'
-    needs: [prepare, build]
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
     permissions:
@@ -189,7 +74,7 @@ jobs:
         name: Publish by digest and sign
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION: ${{ inputs.version }}
         run: |
           nix develop --command bun scripts/release.ts publish "$VERSION" artifacts published
           echo "subjects=$(jq -c . published/subjects.json)" >> "$GITHUB_OUTPUT"
@@ -222,8 +107,8 @@ jobs:
 
   finish:
     name: finish (${{ matrix.os }}-${{ matrix.arch }})
-    if: inputs.finish && github.event_name == 'push'
-    needs: [prepare, publish]
+    if: inputs.finish
+    needs: publish
     strategy:
       fail-fast: false
       matrix:
@@ -241,7 +126,7 @@ jobs:
           path: artifacts
       - env:
           ZEABUR_TELEMETRY_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && inputs.telemetry-key || '' }}
-          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION: ${{ inputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
         run: nix develop --command bun scripts/release.ts finish "$VERSION" "$OS" "$ARCH" artifacts dist
@@ -256,7 +141,7 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.publish.result == 'success' && needs.attest.result != 'failure' &&
           (needs.finish.result == 'success' || needs.finish.result == 'skipped') }}
-    needs: [prepare, publish, attest, finish]
+    needs: [publish, attest, finish]
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
     permissions:
@@ -274,7 +159,7 @@ jobs:
           path: artifacts
       - name: Make the release assets and their signed checksums
         env:
-          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION: ${{ inputs.version }}
         run: |
           mkdir -p release/assets
           nix develop --command bun scripts/release.ts assets "$VERSION" artifacts release/assets
@@ -286,14 +171,14 @@ jobs:
       - name: Add the assets to the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION: ${{ inputs.version }}
         run: gh release upload "$VERSION" release/assets/* --repo "$GITHUB_REPOSITORY" --clobber
 
   verify:
     name: verify (${{ matrix.os }}-${{ matrix.arch }})
     # A skipped finish would skip this too without the explicit condition.
     if: ${{ !cancelled() && needs.release.result == 'success' }}
-    needs: [prepare, release]
+    needs: release
     strategy:
       fail-fast: false
       matrix:
@@ -313,13 +198,13 @@ jobs:
       - name: Download the draft's assets and verify them
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.prepare.outputs.version }}
+          VERSION: ${{ inputs.version }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
           RELEASE_CERT_IDENTITY_REGEXP: '^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@'
           RELEASE_SIGNER_WORKFLOW: zeabur-oss/.github/.github/workflows/release.yml
           RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
-          RELEASE_SOURCE_REF: refs/tags/${{ needs.prepare.outputs.version }}
+          RELEASE_SOURCE_REF: refs/tags/${{ inputs.version }}
         run: |
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
           nix develop --command bun x zeabur-oss-release verify-assets downloaded

@@ -41,10 +41,12 @@ One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell
 | `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes.                                                        |
 | `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first.                                                           |
 
-Inputs of the shared `release.yml`: `version`, `platforms` (JSON array of
-`{os, arch, runner}`, also the platforms a draft is verified on), `finish` with `finish-platforms`
-(default `platforms`), `runner`, `signing-environment` and `telemetry-key`. `build` may leave logs in `$CI_ARTIFACTS`; they
-are uploaded when it fails.
+A release is two shared workflows, called one after the other. `release-build.yml` runs `check`,
+`build` and `sign`; its inputs are `version`, `platforms` (JSON array of `{os, arch, runner}`),
+`runner`, `signing-environment` and `telemetry-key`, and its outputs are `version` and
+`platforms`. `release.yml` runs `publish`, `finish`, `assets` and `verify`; its inputs are the two
+outputs, `finish` with `finish-platforms` (default `platforms`), `runner` and `telemetry-key`.
+`build` may leave logs in `$CI_ARTIFACTS`; they are uploaded when it fails.
 
 `signing-environment` names an environment whose deployment branches are `main` and `v*` tags,
 holding `APPLE_CERTIFICATE_P12` (the Developer ID Application certificate and key, base64),
@@ -237,7 +239,15 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  build:
+    uses: zeabur-oss/.github/.github/workflows/release-build.yml@<sha> # main
+    permissions:
+      contents: read
+    with:
+      version: ${{ inputs.version }}
   release:
+    if: github.event_name == 'push' # a rehearsal never publishes
+    needs: build
     uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
     permissions:
       contents: write
@@ -245,7 +255,8 @@ jobs:
       id-token: write
       attestations: write
     with:
-      version: ${{ inputs.version }}
+      version: ${{ needs.build.outputs.version }}
+      platforms: ${{ needs.build.outputs.platforms }}
 ```
 
 `.github/workflows/changeset.yml`:
