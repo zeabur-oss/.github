@@ -34,4 +34,4 @@ jobs:
         run: |
           args=("$BASE" "$HEAD" "$TITLE")
           [[ "$NONE" != true ]] || args+=(--none)
-          nix develop --command node_modules/.bin/zeabur-oss-release changeset "${args[@]}"
+          nix develop --command bun x zeabur-oss-release changeset "${args[@]}"
