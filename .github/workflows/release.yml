@@ -99,6 +99,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - id: version
@@ -143,6 +144,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - name: Build and smoke
@@ -199,6 +201,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -257,6 +260,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -346,6 +350,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - name: Download the draft's assets and verify them

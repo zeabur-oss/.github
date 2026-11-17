@@ -23,6 +23,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop -c scripts/ci/lint.sh
       - run: jq -e . default.json k3s.json >/dev/null
@@ -37,6 +38,7 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
       - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
+          version: v3.1.0
           upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - name: Formatted
