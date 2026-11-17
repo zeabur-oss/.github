@@ -107,7 +107,7 @@ permission of its own.
 ### Update
 
 `update.yml` opens one pull request, `update/zeabur-oss`, as zeabur-oss-bot. It moves every pin of
-this repository to its newest release tag, pre-releases skipped: the flake input's URL in
+this repository to its latest release, drafts and pre-releases skipped: the flake input's URL in
 `flake.nix` and `flake.lock`, each `uses:` under `.github` (the tag's commit, with the tag as the
 comment), and `@zeabur-oss/release` in `package.json` with `bun install`. Nothing is dispatched on a
 push to `main`; a caller runs it on Monday 02:30 in Asia/Taipei, or by hand with `workflow_dispatch`

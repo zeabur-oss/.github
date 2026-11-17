@@ -2,8 +2,8 @@ name: Update
 
 # Moves every pin of zeabur-oss/.github in the caller to its newest release and opens one pull
 # request as zeabur-oss-bot (actions/bot-pr): the flake input's URL in flake.nix and flake.lock,
-# each `uses:` under .github and @zeabur-oss/release in package.json and bun.lock. Pre-releases
-# are skipped.
+# each `uses:` under .github and @zeabur-oss/release in package.json and bun.lock. Drafts and
+# pre-releases are skipped.
 on:
   workflow_call:
     secrets:
@@ -24,17 +24,11 @@ jobs:
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
       - id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -o pipefail
-          tags=$(git ls-remote --tags https://github.com/zeabur-oss/.github)
-          tag=$(awk -F'\t' '{ sub("refs/tags/", "", $2) } $2 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ { print $2 }' \
-            <<<"$tags" | sort -V | tail -n1)
-          # An annotated tag lists its commit on the next line, as <tag>^{}.
-          sha=$(awk -F'\t' -v ref="refs/tags/$tag" '$2 == ref || $2 == ref "^{}" { sha = $1 } END { print sha }' <<<"$tags")
-          if [[ -z "$sha" ]]; then
-            echo "::error::zeabur-oss/.github has no release tag"
-            exit 1
-          fi
+          tag=$(gh release view --repo zeabur-oss/.github --json tagName --jq .tagName)
+          sha=$(gh api "repos/zeabur-oss/.github/commits/$tag" --jq .sha)
           if [[ -f flake.lock ]]; then
             input=$(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
               | select((.value | type) == "string")
