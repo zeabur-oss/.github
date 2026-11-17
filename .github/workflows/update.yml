@@ -1,9 +1,9 @@
 name: Update
 
-# Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main and opens
-# one pull request as zeabur-oss-bot (actions/bot-pr). The pins come first: the flake input in flake.lock, each `uses:` under .github
-# and @zeabur-oss/release in package.json and bun.lock. The flake input is updated first and its
-# locked revision is the commit for the rest.
+# Moves every pin of zeabur-oss/.github in the caller to its newest release and opens one pull
+# request as zeabur-oss-bot (actions/bot-pr): the flake input's URL in flake.nix and flake.lock,
+# each `uses:` under .github and @zeabur-oss/release in package.json and bun.lock. Pre-releases
+# are skipped.
 on:
   workflow_call:
     secrets:
@@ -25,33 +25,39 @@ jobs:
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
       - id: pin
         run: |
-          input=""
+          set -o pipefail
+          tags=$(git ls-remote --tags https://github.com/zeabur-oss/.github)
+          tag=$(awk -F'\t' '{ sub("refs/tags/", "", $2) } $2 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ { print $2 }' \
+            <<<"$tags" | sort -V | tail -n1)
+          # An annotated tag lists its commit on the next line, as <tag>^{}.
+          sha=$(awk -F'\t' -v ref="refs/tags/$tag" '$2 == ref || $2 == ref "^{}" { sha = $1 } END { print sha }' <<<"$tags")
+          if [[ -z "$sha" ]]; then
+            echo "::error::zeabur-oss/.github has no release tag"
+            exit 1
+          fi
           if [[ -f flake.lock ]]; then
             input=$(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
               | select((.value | type) == "string")
               | select($n[.value].original.owner == "zeabur-oss" and $n[.value].original.repo == ".github")
               | .key' flake.lock)
-          fi
-          if [[ -n "$input" ]]; then
-            nix flake update "$input"
-            sha=$(jq -r --arg node "$(jq -r --arg i "$input" '.nodes.root.inputs[$i]' flake.lock)" '.nodes[$node].locked.rev' flake.lock)
-          else
-            set -o pipefail
-            sha=$(git ls-remote https://github.com/zeabur-oss/.github refs/heads/main | cut -f1)
+            if [[ -n "$input" ]]; then
+              sed -i -E "s#\"github:zeabur-oss/\.github(/[^\"]*)?\"#\"github:zeabur-oss/.github/${tag}\"#" flake.nix
+              nix flake update "$input"
+            fi
           fi
           grep -rlE 'zeabur-oss/\.github/[^@[:space:]]+@[0-9a-f]{40}' .github \
-            | xargs -r sed -i -E "s#(zeabur-oss/\.github/[^@[:space:]]+)@[0-9a-f]{40}#\1@${sha}#g"
+            | xargs -r sed -i -E "s#(zeabur-oss/\.github/[^@[:space:]]+)@[0-9a-f]{40}( \# [^[:space:]]+)?#\1@${sha} \# ${tag}#g"
           if [[ -f package.json ]] && grep -qE 'github:zeabur-oss/\.github#[0-9a-f]{40}' package.json; then
             sed -i -E "s#github:zeabur-oss/\.github\#[0-9a-f]{40}#github:zeabur-oss/.github\#${sha}#" package.json
             nix develop --command bun install
           fi
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: zeabur-oss/.github/actions/bot-pr@1e30fc7b457256c477278e2869e2a86a151fb0b0 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
           workflows: "true"
           branch: update/zeabur-oss
-          title: "chore(deps): update zeabur-oss/.github"
+          title: "chore(deps): update zeabur-oss/.github to ${{ steps.pin.outputs.tag }}"
           body: |
-            Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}.
+            Moves every pin of zeabur-oss/.github to its release ${{ steps.pin.outputs.tag }}.

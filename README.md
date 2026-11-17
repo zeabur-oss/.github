@@ -107,13 +107,13 @@ permission of its own.
 ### Update
 
 `update.yml` opens one pull request, `update/zeabur-oss`, as zeabur-oss-bot. It moves every pin of
-this repository to one commit: the flake input in `flake.lock` (its locked revision is the commit
-for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in `package.json` with
-`bun install`. Nothing is dispatched on a push to `main`; a
-caller runs it on Monday 02:30 in Asia/Taipei, or by hand with `workflow_dispatch` when a change is
-urgent. Renovate leaves these pins alone. This repository and each caller need the bot installed,
-`ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to them, and Workflows write for
-the bot, since most pins are under `.github/workflows`.
+this repository to its newest release tag, pre-releases skipped: the flake input's URL in
+`flake.nix` and `flake.lock`, each `uses:` under `.github` (the tag's commit, with the tag as the
+comment), and `@zeabur-oss/release` in `package.json` with `bun install`. Nothing is dispatched on a
+push to `main`; a caller runs it on Monday 02:30 in Asia/Taipei, or by hand with `workflow_dispatch`
+when a change is urgent. Renovate leaves these pins alone. This repository and each caller need the
+bot installed, `ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to them, and
+Workflows write for the bot, since most pins are under `.github/workflows`.
 
 ### Renovate
 
@@ -196,7 +196,7 @@ jobs:
       - uses: actions/checkout@<sha> # v7.0.1
         with:
           persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@<sha> # main
+      - uses: zeabur-oss/.github/actions/ci-setup@<sha> # <tag>
         with:
           rust-cache: true
       - run: nix develop -c scripts/ci/lint.sh
@@ -207,7 +207,7 @@ jobs:
       - uses: actions/checkout@<sha> # v7.0.1
         with:
           persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@<sha> # main
+      - uses: zeabur-oss/.github/actions/ci-setup@<sha> # <tag>
         with:
           rust-cache: true
       - run: nix develop -c scripts/ci/kubernetes.sh
@@ -240,7 +240,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    uses: zeabur-oss/.github/.github/workflows/release-build.yml@<sha> # main
+    uses: zeabur-oss/.github/.github/workflows/release-build.yml@<sha> # <tag>
     permissions:
       contents: read
     with:
@@ -248,7 +248,7 @@ jobs:
   release:
     if: github.event_name == 'push' # a rehearsal never publishes
     needs: build
-    uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
+    uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # <tag>
     permissions:
       contents: write
       packages: write
@@ -270,7 +270,7 @@ permissions:
   contents: read
 jobs:
   changeset:
-    uses: zeabur-oss/.github/.github/workflows/changeset.yml@<sha> # main
+    uses: zeabur-oss/.github/.github/workflows/changeset.yml@<sha> # <tag>
 ```
 
 `.github/workflows/release-pr.yml`:
@@ -295,7 +295,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release-pr:
-    uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # main
+    uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # <tag>
     with:
       name: Zeabur Example
       docs: https://oss.zeabur.com/docs/example/
@@ -317,7 +317,7 @@ permissions:
   contents: read
 jobs:
   update:
-    uses: zeabur-oss/.github/.github/workflows/update.yml@<sha> # main
+    uses: zeabur-oss/.github/.github/workflows/update.yml@<sha> # <tag>
     secrets:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
