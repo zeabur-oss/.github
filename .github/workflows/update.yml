@@ -22,11 +22,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
-      - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
-        with:
-          version: v3.1.0
-          upstream-cache-filter: true
+      - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
       - id: pin
         run: |
           input=""
