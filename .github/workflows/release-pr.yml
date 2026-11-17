@@ -54,19 +54,23 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
       - id: knope
+        name: Prepare the release with knope
         env:
           VERSION: ${{ inputs.version }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
           tag=$(nix develop --command bun x zeabur-oss-release prepare-release --version="$VERSION" --prerelease="$PRERELEASE")
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - if: inputs.check
+      - name: Check the manifests have the version
+        if: inputs.check
         env:
           TAG: ${{ steps.knope.outputs.tag }}
         run: nix develop --command bun scripts/release.ts check "$TAG"
       - id: notes
+        name: Write the pull request body
         env:
           TAG: ${{ steps.knope.outputs.tag }}
         run: |
@@ -97,8 +101,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
       - id: release
+        name: Read the release from the commit subject
         run: |
           subject=$(git log -1 --format=%s)
           tag=$(nix develop --command bun x zeabur-oss-release release-of "$subject")
