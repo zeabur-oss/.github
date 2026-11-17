@@ -65,7 +65,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: candidate-*
@@ -120,11 +121,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
-      - env:
+      - name: Finish the build with the published artifacts
+        env:
           ZEABUR_TELEMETRY_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && inputs.telemetry-key || '' }}
           VERSION: ${{ inputs.version }}
           OS: ${{ matrix.os }}
@@ -153,7 +156,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
-      - run: nix develop --command bun install --frozen-lockfile
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
@@ -194,7 +198,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
       - name: Download the draft's assets and verify them
         env:
           GH_TOKEN: ${{ github.token }}

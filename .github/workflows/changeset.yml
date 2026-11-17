@@ -26,8 +26,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - run: nix develop --command bun install --frozen-lockfile
-      - env:
+      - name: Install the packages
+        run: nix develop --command bun install --frozen-lockfile
+      - name: Check the change file
+        env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
           TITLE: ${{ github.event.pull_request.title }}
