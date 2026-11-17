@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // The zeabur-oss-release command the shared workflows run; index.ts has the functions.
 import { $ } from "bun";
+import { mkdir } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { changeset, prepareRelease, releaseOf } from "./changes";
 import {
@@ -77,6 +78,7 @@ async function main(args: string[]) {
         return [a.slice(0, at), a.slice(at + 1)];
       }),
     );
+    await mkdir(values.out, { recursive: true });
     console.log(
       String(
         await pushImage(values.out, values.label ?? "", rest[0], archives),
@@ -87,9 +89,10 @@ async function main(args: string[]) {
     rest.length === 2 &&
     values.out &&
     only("out")
-  )
+  ) {
+    await mkdir(values.out, { recursive: true });
     console.log(String(await pushChart(values.out, rest[0], rest[1])));
-  else if (command === "pin-digest" && rest.length === 3 && only()) {
+  } else if (command === "pin-digest" && rest.length === 3 && only()) {
     const file = Bun.file(rest[0]);
     await Bun.write(
       file,
