@@ -1,0 +1,19 @@
+name: Changeset
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+# A title edit, a label and a push in a row leave only the last run.
+concurrency:
+  group: changeset-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changeset:
+    uses: ./.github/workflows/changeset.yml
+    with:
+      runner: instabox-small
