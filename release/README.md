@@ -109,8 +109,8 @@ zeabur-oss-release release-of "chore(release): v0.1.2 (#13)"            # the ta
 - **The registry holds what was tested.** `push-chart` checks that the chart the registry
   serves is the packaged file; `verify-image` checks that the index lists exactly the recorded
   platform images.
-- **One signer identity.** Signatures name this repository's `release.yml`, run for the
-  released repository at its tag.
+- **One signer identity.** Signatures name the released repository's own `release.yml`, run at
+  its tag.
 - **The notes are the changelog section, as written.** `CHANGELOG.md` uses the headings knope
   writes (`## 0.1.1 (2026-10-28)`) and keeps each paragraph and list item on one line, since a
   release body shows every line break. A pre-release has its own section. The body ends with one

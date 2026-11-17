@@ -142,15 +142,13 @@ jobs:
       docs: https://oss.zeabur.com/docs/example/
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
-      # The check job of release.yml checks the version; there is no scripts/release.ts.
-      check: false
     secrets:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
 ### The Release workflow
 
-Each repository writes its own `.github/workflows/release.yml`, with no `scripts/release.ts`.
+Each repository writes its own `.github/workflows/release.yml`.
 [builder's](https://github.com/zeabur-oss/builder/blob/main/.github/workflows/release.yml) is the
 model:
 

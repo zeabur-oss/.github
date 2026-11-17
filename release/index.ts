@@ -1,7 +1,6 @@
 // The steps of a release that every zeabur-oss repository does the same way, on crane, helm,
-// cosign and gh, which the caller's dev shell provides. A repository's scripts/release.ts
-// imports it (@zeabur-oss/release) and keeps the rest; cli.ts is the zeabur-oss-release command
-// the shared workflows run. Each function throws Failure when the release must stop.
+// cosign and gh, which the caller's dev shell provides. cli.ts is the zeabur-oss-release command
+// that each repository's release.yml runs. Each function throws Failure when the release must stop.
 //
 // push* append to <out>/digests.txt and <out>/subjects.json. digests.txt has one line per image,
 // index or chart: its kind (`<label> <os>/<arch>`, `<label> index` or `chart`; an empty label is
