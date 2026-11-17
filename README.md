@@ -1,10 +1,9 @@
 # zeabur-oss/.github
 
-The CI setup action and the changeset, release pull request, release and update
-workflows every zeabur-oss repository calls, the shared Renovate preset. A
-repository keeps
-what is its own in its CI workflow and scripts; what is here only checks out, installs Nix, caches
-and uploads.
+The CI setup action, the changeset, release pull request, release and update workflows every
+zeabur-oss repository calls, the shared Renovate preset and `@zeabur-oss/release`. A repository
+keeps what is its own in its CI workflow and scripts; what is here only checks out, installs Nix,
+caches and uploads.
 
 ## The contract
 
@@ -61,8 +60,9 @@ name. macOS builds of `main` and tags run in it; others build unsigned.
 [`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
 signs `SHA256SUMS`, verifies a release and copies the release notes from `CHANGELOG.md`. A
 repository depends on it as `@zeabur-oss/release` in its `package.json`, pinned in its
-`bun.lock`, and imports it in its `scripts/release.ts` stages; the workflow runs `notes`,
-`checksums` and `verify-assets` itself, from the same package.
+`bun.lock`, and imports its library (`release/index.ts`) in its `scripts/release.ts` stages. The
+workflow runs the command, `bun x zeabur-oss-release notes | checksums | verify-assets`, from the
+same package.
 
 ### Unsafe report
 
@@ -71,7 +71,7 @@ dependencies of those packages that have `unsafe` code or link native code. It w
 `target/unsafe-report.md` and fails on any that the repository's
 `supply-chain/unsafe-allowlist.toml` does not approve, and on any entry there whose crate and kind
 the shipped graph doesn't need: a crate that comes back needs a new approval. A Rust repository runs
-`node_modules/.bin/zeabur-oss-unsafe-report` from its `scripts/ci/lint.sh`; Cargo comes from the caller's
+`bun x zeabur-oss-unsafe-report` from its `scripts/ci/lint.sh`; Cargo comes from the caller's
 dev shell.
 
 ### Change files and release pull requests
@@ -189,7 +189,7 @@ env:
   CARGO_TERM_COLOR: always
 jobs:
   lint:
-    runs-on: ubuntu-26.04-arm
+    runs-on: instabox-small
     steps:
       - uses: actions/checkout@<sha> # v7.0.1
         with:
@@ -200,7 +200,7 @@ jobs:
       - run: nix develop -c scripts/ci/lint.sh
   kubernetes:
     if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')
-    runs-on: ubuntu-26.04-arm
+    runs-on: instabox-small
     steps:
       - uses: actions/checkout@<sha> # v7.0.1
         with:
