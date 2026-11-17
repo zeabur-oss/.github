@@ -3,12 +3,11 @@ name: Release pull request
 # Run by hand: knope turns the change files in .changeset/ into the next CHANGELOG.md section and
 # version (knope.toml's prepare-release workflow, which may run the caller's own steps), the
 # caller's `bun scripts/release.ts check` confirms every manifest has it, and zeabur-oss-bot opens
-# `chore(release): vX.Y.Z` from release/next into the branch it ran on: main, or a maintenance
-# branch maint/vX.Y. One release pull request at a time: merge or close it before preparing
-# another. With a pre-release label, knope writes vX.Y.Z-<label>.N with every change since the
-# last normal release and keeps the change files for it. On main or maint/vX.Y, once that pull
+# `chore(release): vX.Y.Z` from release/next into main. One release pull request at a time: merge
+# or close it before preparing another. With a pre-release label, knope writes vX.Y.Z-<label>.N
+# with every change since the last normal release and keeps the change files for it. Once that pull
 # request is merged, zeabur-oss-bot tags the commit and leaves a draft release with the CHANGELOG.md
-# section, which starts the caller's release; a tag pushed with GITHUB_TOKEN would start no workflow. maint/vX.Y takes only vX.Y.* tags.
+# section, which starts the caller's release; a tag pushed with GITHUB_TOKEN would start no workflow.
 on:
   workflow_call:
     inputs:
@@ -46,7 +45,7 @@ permissions:
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 15
     steps:
@@ -89,7 +88,7 @@ jobs:
   tag:
     if: >-
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/maint/')) &&
+      github.ref == 'refs/heads/main' &&
       startsWith(github.event.head_commit.message, 'chore(release): v')
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 15
@@ -100,15 +99,9 @@ jobs:
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
       - run: nix develop --command bun install --frozen-lockfile
       - id: release
-        env:
-          BRANCH: ${{ github.ref_name }}
         run: |
           subject=$(git log -1 --format=%s)
           tag=$(nix develop --command bun x zeabur-oss-release release-of "$subject")
-          if [[ -n "$tag" && "$BRANCH" != main && "$tag" != "${BRANCH#maint/}."* ]]; then
-            echo "::error::$BRANCH releases only ${BRANCH#maint/}.*, not $tag"
-            exit 1
-          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - id: app
         if: steps.release.outputs.tag != ''
