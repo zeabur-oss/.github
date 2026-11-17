@@ -2,6 +2,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-actionlint
+jactionlint
 shellcheck scripts/ci/*.sh
 nixfmt --check flake.nix

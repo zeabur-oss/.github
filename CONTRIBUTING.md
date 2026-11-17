@@ -24,7 +24,7 @@ only when its pin moves:
 3. After merging, each caller's Update workflow moves its pins on Monday, or when run by hand;
    review its pull request and let each repository's CI pass before relying on the change.
 
-`Lint` runs actionlint (with shellcheck) on every workflow here, and the tests of
-[`zeabur-oss-release`](release/README.md); run them locally with `nix develop`, then `actionlint`,
-`bun install`, `bun fmt --check .`, `bun check release/ checks/` and `bun test release/` (with Docker). Without the dev shell, actionlint alone is
-`nix shell nixpkgs#actionlint nixpkgs#shellcheck --command actionlint`.
+`Lint` runs jactionlint (with shellcheck) on every workflow here, and the tests of
+[`zeabur-oss-release`](release/README.md); run them locally with `nix develop`, then `jactionlint`,
+`bun install`, `bun fmt --check .`, `bun check release/ checks/` and `bun test release/` (with Docker). Without the dev shell, jactionlint alone is
+`nix shell nixpkgs#jactionlint nixpkgs#shellcheck --command jactionlint`.

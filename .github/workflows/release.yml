@@ -87,6 +87,7 @@ env:
 jobs:
   prepare:
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -126,6 +127,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.platforms) }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     # The environment's branch rules keep the signing secrets to main and tags; a rehearsal on
     # any other branch builds unsigned.
     environment: >-
@@ -177,6 +179,7 @@ jobs:
     if: github.event_name == 'push'
     needs: [prepare, build]
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write # images and charts on ghcr.io
@@ -217,6 +220,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.publish.outputs.subjects) }}
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
     permissions:
       packages: write
       id-token: write
@@ -236,6 +240,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.finish-platforms || inputs.platforms) }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -264,6 +269,7 @@ jobs:
           (needs.finish.result == 'success' || needs.finish.result == 'skipped') }}
     needs: [prepare, publish, attest, finish]
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
     permissions:
       contents: write # the draft
       id-token: write
@@ -316,6 +322,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.platforms) }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     permissions:
       # GitHub shows a draft release only to a token that can push.
       contents: write

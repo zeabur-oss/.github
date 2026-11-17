@@ -16,7 +16,7 @@ scripts/ci/<job>.sh        the lint job of Lint
 Run every job before you commit, in the dev shell (`nix develop`):
 
 ```sh
-scripts/ci/lint.sh     # actionlint, shellcheck, nixfmt
+scripts/ci/lint.sh     # jactionlint, shellcheck, nixfmt
 ```
 
 Commits follow [CONTRIBUTING.md](CONTRIBUTING.md).
