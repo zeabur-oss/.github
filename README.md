@@ -319,8 +319,8 @@ jobs:
 2. Run the repository's Release pull request workflow, with `prerelease: rc` for a release
    candidate. Check the pull request it opens; edit `CHANGELOG.md` on its branch if needed.
 3. Optionally rehearse: run the repository's Release workflow by hand with the version.
-4. Merge the release pull request. zeabur-oss-bot tags the merge commit, and the tag's workflow
-   leaves a draft release.
+4. Merge the release pull request. zeabur-oss-bot tags the merge commit and leaves a draft release
+   with the `CHANGELOG.md` section; the tag's workflow adds the assets to it.
 5. Check the draft and publish it. Releases are immutable once published.
 
 A tag is a [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html) version with a `v` and no build

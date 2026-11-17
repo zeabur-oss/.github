@@ -7,8 +7,8 @@ name: Release pull request
 # branch maint/vX.Y. One release pull request at a time: merge or close it before preparing
 # another. With a pre-release label, knope writes vX.Y.Z-<label>.N with every change since the
 # last normal release and keeps the change files for it. On main or maint/vX.Y, once that pull
-# request is merged, zeabur-oss-bot tags the commit, which starts the caller's release; a tag
-# pushed with GITHUB_TOKEN would start no workflow. maint/vX.Y takes only vX.Y.* tags.
+# request is merged, zeabur-oss-bot tags the commit and leaves a draft release with the CHANGELOG.md
+# section, which starts the caller's release; a tag pushed with GITHUB_TOKEN would start no workflow. maint/vX.Y takes only vX.Y.* tags.
 on:
   workflow_call:
     inputs:
@@ -110,8 +110,15 @@ jobs:
           private-key: ${{ secrets.private-key }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-      - if: steps.release.outputs.tag != ''
+      - name: Tag the commit and leave a draft release with the CHANGELOG.md section
+        if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           TAG: ${{ steps.release.outputs.tag }}
-        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
+          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$TAG" >notes.md
+          # GitHub never marks a pre-release latest.
+          prerelease=()
+          [[ "$TAG" != *-* ]] || prerelease=(--prerelease)
+          gh release create "$TAG" --verify-tag --draft "${prerelease[@]}" --title "$TAG" --notes-file notes.md
