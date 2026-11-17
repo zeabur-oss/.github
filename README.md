@@ -10,7 +10,7 @@ The shared CI setup, the release and changeset workflows, the Renovate preset an
    `ZEABUR_OSS_BOT_CLIENT_ID` visible to the repository.
 2. Add the label `changelog: none` and a tag ruleset that lets zeabur-oss-bot create `v*` tags
    while nobody may move or delete them.
-3. Add the workflows below, `knope.toml`, `scripts/release.ts` and `scripts/ci/<job>.sh`.
+3. Add the workflows below, `knope.toml` and `scripts/ci/<job>.sh`.
 4. Add `@zeabur-oss/release` to `package.json` as
    `github:zeabur-oss/.github#<sha>`, and `renovate.json` with
    `{"extends": ["github>zeabur-oss/.github"]}` plus the repository's `enabledManagers`.
@@ -27,8 +27,9 @@ runs the same way locally. Each script is bash that starts with `set -euo pipefa
 - Short checks share one job, `lint.sh`. It runs jactionlint on the workflows.
 - Slow jobs run only in the merge queue, on a schedule, by hand or on a tag (the `if:` below).
 - `ok` needs every job and fails when one failed or was cancelled.
-- Jobs run on `instabox-small`. A job without Nix runs on `ubuntu-slim`; `ubuntu-26.04` and macOS
-  are for work that needs that platform.
+- Every job, `ok` too, runs on Instabox (`instabox-small`, or `-medium` and `-large` for heavy
+  jobs), so no job waits for a GitHub-hosted runner. `ubuntu-26.04` and macOS are only for work
+  that needs that platform.
 
 ```yaml
 name: CI
@@ -73,7 +74,7 @@ jobs:
     name: ci / ok
     if: always()
     needs: [lint, kubernetes]
-    runs-on: ubuntu-slim
+    runs-on: instabox-small
     timeout-minutes: 5
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
@@ -145,95 +146,33 @@ jobs:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
-```yaml
-name: Release
-on:
-  push:
-    tags: ["v[0-9]*"]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to rehearse (v0.1.1); a rehearsal never publishes"
-        required: true
-permissions:
-  contents: read
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-jobs:
-  build:
-    uses: zeabur-oss/.github/.github/workflows/release-build.yml@<sha> # main
-    permissions:
-      contents: read
-    with:
-      version: ${{ inputs.version }}
-  release:
-    if: github.event_name == 'push'
-    needs: build
-    uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
-    permissions:
-      contents: write
-      packages: write
-      id-token: write
-      attestations: write
-    with:
-      version: ${{ needs.build.outputs.version }}
-      platforms: ${{ needs.build.outputs.platforms }}
-```
+### The Release workflow
 
-`release-build.yml` also takes `platforms` (a JSON array of `{os, arch, runner}`), `runner`,
-`telemetry-key` and `signing-environment`. `release.yml` also takes `finish`, `finish-platforms`,
-`runner` and `telemetry-key`.
+Each repository writes its own `.github/workflows/release.yml`, with no `scripts/release.ts`.
+[builder's](https://github.com/zeabur-oss/builder/blob/main/.github/workflows/release.yml) is the
+model:
 
-To sign macOS builds, pass `signing-environment`: an environment limited to `main` and `v*` tags
-that holds `APPLE_CERTIFICATE_P12` (base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_API_KEY_P8`,
-`APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID`. Without it, macOS builds are unsigned.
+- `check`: the manifests and `CHANGELOG.md` have the version.
+- `build`, one job for each architecture: build, smoke, and upload the archives.
+- `publish`: `zeabur-oss-release push-image` and `push-chart` push the archives that were smoked,
+  by digest, and sign them.
+- `attest`, `assets` (`checksums`, then `gh release upload` to the draft) and `verify`
+  (`verify-assets`, `verify-image`, `verify-chart`).
 
-### `scripts/release.ts`
-
-The workflows run `bun scripts/release.ts <stage>` in the repository's dev shell. The stages use
-the library of `@zeabur-oss/release` ([release/README.md](release/README.md)).
-
-| Stage     | Arguments                                  | Does                                                                         |
-| --------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| `check`   | `<version>`                                | Fails unless the manifests have this version.                                |
-| `build`   | `<version> <os> <arch> <dist>`             | Builds one platform into `<dist>` and smokes it. Logs go to `$CI_ARTIFACTS`. |
-| `sign`    | `<version> <os> <arch> <dist>`             | On macOS with `signing-environment`: signs and notarizes the build.          |
-| `publish` | `<version> <artifacts> <published>`        | Pushes by digest, signs and writes `<published>/subjects.json`.              |
-| `finish`  | `<version> <os> <arch> <artifacts> <dist>` | With `finish: true`: what needs the published digests, such as an installer. |
-| `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`.                                  |
-| `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts.                                        |
-
-`<artifacts>` holds `candidate-<os>-<arch>`, `published` and `finish-<os>-<arch>`.
-
-A Rust repository also runs `bun x zeabur-oss-unsafe-report` in `lint.sh`. It fails on a shipped
-crate with `unsafe` or native code that `supply-chain/unsafe-allowlist.toml` does not approve.
-
-### Verify a release
-
-The signer is this repository's `release.yml`, not the caller's:
+Each step is a shell line in the dev shell (`defaults.run.shell: nix develop --command bash -eo
+pipefail {0}`) that calls crane, helm, cosign, gh or `bun x zeabur-oss-release`
+([release/README.md](release/README.md)). The signer is the repository's own `release.yml`:
 
 ```sh
 cosign verify <image>@<digest> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
-  --certificate-github-workflow-repository zeabur-oss/<repo> \
+  --certificate-identity-regexp '^https://github\.com/zeabur-oss/<repo>/\.github/workflows/release\.yml@' \
   --certificate-github-workflow-ref refs/tags/<version>
 gh attestation verify <file> --repo zeabur-oss/<repo> \
-  --signer-workflow zeabur-oss/.github/.github/workflows/release.yml
+  --signer-workflow zeabur-oss/<repo>/.github/workflows/release.yml
 ```
 
-If the `verify` job fails because of the check itself, fix the check and run it again from a
-checkout, in the dev shell, after `bun install`:
-
-```sh
-export RELEASE_CERT_IDENTITY_REGEXP='^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
-  RELEASE_SIGNER_WORKFLOW=zeabur-oss/.github/.github/workflows/release.yml \
-  RELEASE_SOURCE_REPOSITORY=zeabur-oss/<repo> RELEASE_SOURCE_REF=refs/tags/<version>
-gh release download <version> --repo zeabur-oss/<repo> --dir downloaded
-bun x zeabur-oss-release verify-assets downloaded
-bun scripts/release.ts verify <version> linux arm64 downloaded
-```
+If the `verify` job fails because of the check itself, fix the check and run the failed jobs again.
 
 ## Renovate
 
