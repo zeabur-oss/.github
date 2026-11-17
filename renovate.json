@@ -7,7 +7,9 @@
       "description": "Inputs that name a release, marked with a `# renovate: depName=` comment above them.",
       "customType": "regex",
       "managerFilePatterns": ["/^actions/.+/action\\.ya?ml$/"],
-      "matchStrings": ["# renovate: depName=(?<depName>\\S+)\\n\\s+version: (?<currentValue>v\\S+)"],
+      "matchStrings": [
+        "# renovate: depName=(?<depName>\\S+)\\n\\s+version: (?<currentValue>v\\S+)"
+      ],
       "datasourceTemplate": "github-releases"
     }
   ],
