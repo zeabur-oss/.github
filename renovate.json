@@ -4,21 +4,23 @@
   "enabledManagers": ["github-actions", "custom.regex"],
   "customManagers": [
     {
-      "description": "The version input of Mic92/hestia, which the action downloads next to its own pin.",
+      "description": "Mic92/hestia: the action pin, its version comment and its version input are one dependency, so they always name the same release.",
       "customType": "regex",
       "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/", "/^actions/.+/action\\.ya?ml$/"],
       "matchStrings": [
-        "uses: Mic92/hestia@\\S+ # \\S+\\n\\s+with:\\n\\s+version: (?<currentValue>v\\S+)"
+        "(?<head>uses: Mic92/hestia@)(?<currentDigest>[0-9a-f]{40}) # v\\S+(?<mid>\\n\\s+with:\\n\\s+version: )(?<currentValue>v\\S+)"
       ],
       "depNameTemplate": "Mic92/hestia",
-      "datasourceTemplate": "github-releases"
+      "datasourceTemplate": "github-tags",
+      "autoReplaceStringTemplate": "{{{head}}}{{{newDigest}}} # {{{newValue}}}{{{mid}}}{{{newValue}}}"
     }
   ],
   "packageRules": [
     {
-      "description": "The action pin and its version input move in one pull request.",
+      "description": "The custom manager above owns Mic92/hestia.",
+      "matchManagers": ["github-actions"],
       "matchPackageNames": ["Mic92/hestia"],
-      "groupName": "hestia"
+      "enabled": false
     }
   ]
 }
