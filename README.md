@@ -148,9 +148,7 @@ jobs:
 
 ### The Release workflow
 
-Each repository writes its own `.github/workflows/release.yml`.
-[builder's](https://github.com/zeabur-oss/builder/blob/main/.github/workflows/release.yml) is the
-model:
+Each repository writes its own `.github/workflows/release.yml`, with these jobs:
 
 - `check`: the manifests and `CHANGELOG.md` have the version.
 - `build`, one job for each architecture: build, smoke, and upload the archives.
