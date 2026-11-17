@@ -1,6 +1,6 @@
 # AGENTS.md
 
-The shared CI, release and Update workflows of every zeabur-oss repository ([README.md](README.md)).
+The shared CI and release workflows and the Renovate preset of every zeabur-oss repository ([README.md](README.md)).
 
 ## Layout
 

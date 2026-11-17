@@ -1,12 +1,12 @@
 # zeabur-oss/.github
 
-The shared CI setup, the release, changeset and Update workflows, the Renovate preset and
+The shared CI setup, the release and changeset workflows, the Renovate preset and
 `@zeabur-oss/release` that every zeabur-oss repository uses. Pin this repository by commit of
-`main`; the Update workflow moves the pins.
+`main`; Renovate moves the pins.
 
 ## Set up a repository
 
-1. Install zeabur-oss-bot with Workflows write, and make `ZEABUR_OSS_BOT_PRIVATE_KEY` and
+1. Install zeabur-oss-bot, and make `ZEABUR_OSS_BOT_PRIVATE_KEY` and
    `ZEABUR_OSS_BOT_CLIENT_ID` visible to the repository.
 2. Add the label `changelog: none` and a tag ruleset that lets zeabur-oss-bot create `v*` tags
    while nobody may move or delete them.
@@ -235,32 +235,18 @@ bun x zeabur-oss-release verify-assets downloaded
 bun scripts/release.ts verify <version> linux arm64 downloaded
 ```
 
-## Update
-
-Every Monday at 02:30 Asia/Taipei, Update opens `update/zeabur-oss` as zeabur-oss-bot. It moves
-every pin of this repository to the head of `main` (the flake input, each `uses:`, and
-`@zeabur-oss/release`) and lists the commits in between. A `!` in a subject marks a change you must
-act on. Run it by hand when a change is urgent. Renovate leaves these pins alone.
-
-```yaml
-name: Update
-on:
-  schedule:
-    - cron: "30 18 * * 0"
-  workflow_dispatch:
-permissions:
-  contents: read
-jobs:
-  update:
-    uses: zeabur-oss/.github/.github/workflows/update.yml@<sha> # main
-    secrets:
-      private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
-```
-
 ## Renovate
 
 `default.json` checks third-party updates daily from 03:00 to 06:59 Asia/Taipei, and waits seven
-days after a release. `@zeabur-oss/*` and `zeabur-oss/*` move at once. A repository that pins the
+days after a release. `@zeabur-oss/*` and `zeabur-oss/*` move at once.
+
+The pins of this repository move to the head of `main` together, in one pull request
+`renovate/zeabur-oss.github`: each `uses:`, `@zeabur-oss/release` with `bun.lock`, and the flake
+input with `flake.lock`. The flake input must name a commit,
+`url = "github:zeabur-oss/.github/<sha>";`, and `enabledManagers` must list `nix`; Renovate does not
+move an input without one. A `!` in a linked commit's subject marks a change you must act on.
+
+A repository that pins the
 `rancher/k3s` image or `INSTALL_K3S_VERSION` also extends `github>zeabur-oss/.github:k3s` and
 enables `custom.regex`.
 
