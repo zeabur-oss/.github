@@ -17,6 +17,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-26.04-arm
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,6 +36,7 @@ jobs:
             nix flake update "$input"
             sha=$(jq -r --arg node "$(jq -r --arg i "$input" '.nodes.root.inputs[$i]' flake.lock)" '.nodes[$node].locked.rev' flake.lock)
           else
+            set -o pipefail
             sha=$(git ls-remote https://github.com/zeabur-oss/.github refs/heads/main | cut -f1)
           fi
           grep -rlE 'zeabur-oss/\.github/[^@[:space:]]+@[0-9a-f]{40}' .github \
