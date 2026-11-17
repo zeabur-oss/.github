@@ -1,3 +1,0 @@
-<!-- expect: ZeaburZh.Ellipsis -->
-
-正在儲存...

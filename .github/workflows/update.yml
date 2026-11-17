@@ -1,11 +1,9 @@
 name: Update
 
-# Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main, copies the
-# shared skills again from that commit, and opens one pull request as zeabur-oss-bot
-# (actions/bot-pr). The pins come first: the flake input in flake.lock, each `uses:` under .github
+# Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main and opens
+# one pull request as zeabur-oss-bot (actions/bot-pr). The pins come first: the flake input in flake.lock, each `uses:` under .github
 # and @zeabur-oss/release in package.json and bun.lock. The flake input is updated first and its
-# locked revision is the commit for the rest. The skills are each skill in .claude/skills that
-# skills/ here also has.
+# locked revision is the commit for the rest.
 on:
   workflow_call:
     secrets:
@@ -46,25 +44,12 @@ jobs:
             nix develop --command bun install
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-      - env:
-          SHA: ${{ steps.pin.outputs.sha }}
-        run: |
-          source="$RUNNER_TEMP/oss"
-          git init --quiet "$source"
-          git -C "$source" fetch --quiet --depth 1 https://github.com/zeabur-oss/.github.git "$SHA"
-          git -C "$source" checkout --quiet FETCH_HEAD
-          for dir in .claude/skills/*/; do
-            name=$(basename "$dir")
-            [[ -d "$source/skills/$name" ]] || continue
-            rm -rf "$dir"
-            cp -R "$source/skills/$name" "$dir"
-          done
       - uses: zeabur-oss/.github/actions/bot-pr@1e30fc7b457256c477278e2869e2a86a151fb0b0 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
           workflows: "true"
           branch: update/zeabur-oss
-          title: "chore(deps): update zeabur-oss/.github and the shared skills"
+          title: "chore(deps): update zeabur-oss/.github"
           body: |
-            Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }} and copies the shared skills again from that commit.
+            Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}.
