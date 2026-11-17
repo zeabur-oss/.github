@@ -1,176 +1,34 @@
 # zeabur-oss/.github
 
-The CI setup action, the changeset, release pull request, release and update workflows every
-zeabur-oss repository calls, the shared Renovate preset and `@zeabur-oss/release`. A repository
-keeps what is its own in its CI workflow and scripts; what is here only checks out, installs Nix,
-caches and uploads.
+The shared CI setup, the release, changeset and Update workflows, the Renovate preset and
+`@zeabur-oss/release` that every zeabur-oss repository uses. Pin this repository by commit of
+`main`; the Update workflow moves the pins.
 
-## The contract
+## Set up a repository
 
-### CI
+1. Install zeabur-oss-bot with Workflows write, and make `ZEABUR_OSS_BOT_PRIVATE_KEY` and
+   `ZEABUR_OSS_BOT_CLIENT_ID` visible to the repository.
+2. Add the label `changelog: none` and a tag ruleset that lets zeabur-oss-bot create `v*` tags
+   while nobody may move or delete them.
+3. Add the workflows below, `knope.toml`, `scripts/release.ts` and `scripts/ci/<job>.sh`.
+4. Add `@zeabur-oss/release` to `package.json` as
+   `github:zeabur-oss/.github#<sha>`, and `renovate.json` with
+   `{"extends": ["github>zeabur-oss/.github"]}` plus the repository's `enabledManagers`.
+5. Require the checks `ci / ok` and `DCO` (the DCO app) on `main`.
 
-A repository's `.github/workflows/ci.yml` lists its jobs. Each one checks out, runs
-`actions/ci-setup` and then `nix develop -c scripts/ci/<job>.sh` (`nix develop .#<shell>` for
-another dev shell), so a job runs the same way locally. Each `scripts/ci/<job>.sh` is plain bash
-that starts with `set -euo pipefail` and `cd "$(dirname "$0")/../.."`.
+## CI
 
-- `actions/ci-setup` installs Nix. With `rust-cache: true` it also installs kache, whose cache is
-  one for the repository, and the job runs Cargo as `kache cargo -- <command>`. Only runs of
-  `main` save it; a cache saved on a pull request or merge queue ref can't be read from any other
-  ref. The scheduled run keeps it current for the merge-queue-only jobs.
-- Jobs that need a minute or less of work share a runner: `lint.sh` runs the formatters, linters
-  and other short checks one after another.
-- Slow jobs run only in the merge queue, on a schedule, a manual run or a tag, with
-  `if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')`.
-- The job `ok` (named `ci / ok`, the check rulesets require) needs every other job, runs
-  `if: always()` and fails when one of them failed or was cancelled.
-- `lint.sh` runs jactionlint, which also holds zizmor's audits, on the workflows and actions. DCO is
-  checked by the DCO app, which needs no workflow.
+Each job checks out, runs `actions/ci-setup` and then `nix develop -c scripts/ci/<job>.sh`, so it
+runs the same way locally. Each script is bash that starts with `set -euo pipefail` and
+`cd "$(dirname "$0")/../.."`.
 
-### `scripts/release.ts`
-
-One entrypoint per stage, `bun scripts/release.ts <stage>`, run in the dev shell of the commit being released (so the dev shell has Bun):
-
-| Stage     | Arguments                                  | Does                                                                                                                                                        |
-| --------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `check`   | `<version>`                                | The version is the manifests'. The workflow then checks the `CHANGELOG.md` section.                                                                         |
-| `build`   | `<version> <os> <arch> <dist>`             | Builds one platform into `<dist>` and smokes what it built.                                                                                                 |
-| `sign`    | `<version> <os> <arch> <dist>`             | Only with `signing-environment`, on macOS: signs `<dist>`'s build with the Developer ID and notarizes it; leaves it as it is without the `APPLE_*` secrets. |
-| `publish` | `<version> <artifacts> <published>`        | Pushes by digest and signs; writes `<published>/subjects.json`, `[{"name": ..., "digest": "sha256:..."}]` (`[]` when nothing is pushed).                    |
-| `finish`  | `<version> <os> <arch> <artifacts> <dist>` | Only with `finish: true`: per platform, what needs the published digests, such as an installer.                                                             |
-| `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`. The workflow adds the signed `SHA256SUMS` and the notes.                                                        |
-| `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts. The workflow has checked the assets and `SHA256SUMS` first.                                                           |
-
-A release is two shared workflows, called one after the other. `release-build.yml` runs `check`,
-`build` and `sign`; its inputs are `version`, `platforms` (JSON array of `{os, arch, runner}`),
-`runner`, `signing-environment` and `telemetry-key`, and its outputs are `version` and
-`platforms`. `release.yml` runs `publish`, `finish`, `assets` and `verify`; its inputs are the two
-outputs, `finish` with `finish-platforms` (default `platforms`), `runner` and `telemetry-key`.
-`build` may leave logs in `$CI_ARTIFACTS`; they are uploaded when it fails.
-
-`signing-environment` names an environment whose deployment branches are `main` and `v*` tags,
-holding `APPLE_CERTIFICATE_P12` (the Developer ID Application certificate and key, base64),
-`APPLE_CERTIFICATE_PASSWORD`, and an App Store Connect API key for notarization: `APPLE_API_KEY_P8`
-(the file's text), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID`. The caller passes the five by
-name. macOS builds of `main` and tags run in it; others build unsigned.
-
-`<artifacts>` holds one directory per earlier artifact: `candidate-<os>-<arch>`, `published` and
-`finish-<os>-<arch>`.
-
-### Shared steps
-
-[`zeabur-oss-release`](release/README.md) pushes images and charts by digest, signs, writes and
-signs `SHA256SUMS`, verifies a release and copies the release notes from `CHANGELOG.md`. A
-repository depends on it as `@zeabur-oss/release` in its `package.json`, pinned in its
-`bun.lock`, and imports its library (`release/index.ts`) in its `scripts/release.ts` stages. The
-workflow runs the command, `bun x zeabur-oss-release notes | checksums | verify-assets`, from the
-same package.
-
-### Unsafe report
-
-`zeabur-oss-unsafe-report <package>...`, the second command of `@zeabur-oss/release`, lists the shipped
-dependencies of those packages that have `unsafe` code or link native code. It writes
-`target/unsafe-report.md` and fails on any that the repository's
-`supply-chain/unsafe-allowlist.toml` does not approve, and on any entry there whose crate and kind
-the shipped graph doesn't need: a crate that comes back needs a new approval. A Rust repository runs
-`bun x zeabur-oss-unsafe-report` from its `scripts/ci/lint.sh`; Cargo comes from the caller's
-dev shell.
-
-### Change files and release pull requests
-
-A repository has a `knope.toml` with a `prepare-release` workflow: its `PrepareRelease` step turns
-the change files in `.changeset/` into the next `## X.Y.Z (YYYY-MM-DD)` section of `CHANGELOG.md`
-and sets the version in the file `versioned_files` names; a `Command` step with
-`variables = { "$version" = "Version" }` may set it in the other manifests. `changeset.yml` checks
-every pull request: a `feat`, `fix` or `perf` title, or any with `!`, needs a change file or the
-label `changelog: none`, and each change file must name a package of `knope.toml` with `major`,
-`minor`, `patch` or a type of the package's `extra_changelog_sections` (such as `security` for a
-`### Security` section, which knope releases as a patch) and start with a `# ` summary. `release-pr.yml`, run by hand, runs knope,
-`bun scripts/release.ts check` (unless `check: false`), and opens `chore(release): vX.Y.Z` into
-`main` as zeabur-oss-bot, from
-`release/next`, one at a time; its inputs are `name` (the product, for the release's title), `docs`, `version`,
-`prerelease` (a label such as `rc`), `check` and `runner`. The merged
-release pull request is tagged by the bot, whose tag starts the repository's release.
-Both run `zeabur-oss-release` from the caller's `bun.lock`.
-
-The repository needs the label `changelog: none`, and a tag ruleset that lets zeabur-oss-bot create
-`v*` tags while nobody may move or delete them.
-
-### Bot pull requests
-
-`actions/bot-pr` opens or updates a pull request with the working tree's changes as
-zeabur-oss-bot, whose pull requests start CI. Pass `client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}`,
-`private-key`, `branch`, `title` and optionally `body`, `add-paths` and `workflows: "true"` when the
-changes touch `.github/workflows` (the bot's Workflows write permission); the job needs no write
-permission of its own.
-
-### Update
-
-`update.yml` opens one pull request, `update/zeabur-oss`, as zeabur-oss-bot. It moves every pin of
-this repository to one commit: the flake input in `flake.lock` (its locked revision is the commit
-for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in `package.json` with
-`bun install`. The pull request lists the commits since the last pin, and a `!` in a subject marks a
-change the caller must act on. Nothing is dispatched on a push to `main`; a caller runs it on Monday
-02:30 in Asia/Taipei, or by hand with `workflow_dispatch` when a change is urgent. Renovate leaves
-these pins alone. This repository and each caller need the bot installed,
-`ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to them, and Workflows write for
-the bot, since most pins are under `.github/workflows`.
-
-### Renovate
-
-`default.json` leaves third-party updates to Renovate, daily between 03:00 and 06:59 in
-Asia/Taipei, one pull request per update. Lock file maintenance runs in the same hours on Monday.
-`updateNotScheduled` is `false`, so updates to existing branches wait for the schedule too. Per the
-Renovate documentation, a vulnerability-fix pull request ignores `schedule` and `prHourlyLimit`.
-A repository's own groups and package rules override these.
-
-Third-party releases wait seven days (`minimumReleaseAge`); our own, `@zeabur-oss/*` on npm and
-`zeabur-oss/*` tags and releases, move as soon as they are published. A repository that pins the
-`rancher/k3s` test image or documents `INSTALL_K3S_VERSION` also extends
-`github>zeabur-oss/.github:k3s` and enables `custom.regex`: `k3s.json` moves both with K3s's
-stable channel, without the wait.
-
-### Signatures
-
-Keyless signatures and attestations name the workflow that ran, which is this repository's
-`release.yml`, not the caller's. Verify a release of `zeabur-oss/<repo>` with:
-
-```sh
-cosign verify <image>@<digest> \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
-  --certificate-github-workflow-repository zeabur-oss/<repo> \
-  --certificate-github-workflow-ref refs/tags/<version>
-gh attestation verify <file> --repo zeabur-oss/<repo> \
-  --signer-workflow zeabur-oss/.github/.github/workflows/release.yml
-```
-
-The `verify` stage gets these values in `RELEASE_CERT_IDENTITY_REGEXP`, `RELEASE_SIGNER_WORKFLOW`,
-`RELEASE_SOURCE_REPOSITORY` and `RELEASE_SOURCE_REF`.
-
-If the `verify` job fails on a draft, fix the check and run it again from a checkout, in the dev
-shell, after `bun install`:
-
-```sh
-export RELEASE_CERT_IDENTITY_REGEXP='^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
-  RELEASE_SIGNER_WORKFLOW=zeabur-oss/.github/.github/workflows/release.yml \
-  RELEASE_SOURCE_REPOSITORY=zeabur-oss/<repo> RELEASE_SOURCE_REF=refs/tags/<version>
-gh release download <version> --repo zeabur-oss/<repo> --dir downloaded
-bun x zeabur-oss-release verify-assets downloaded
-bun scripts/release.ts verify <version> linux arm64 downloaded
-```
-
-## Runners
-
-Jobs run on Instabox, `instabox-small` by default. A job that only runs a short script without Nix
-(a check of the pull request, a summary) runs on `ubuntu-slim`. `ubuntu-26.04` and macOS are only
-for work that needs that platform, such as an amd64 build or e2e run.
-
-## Calling the workflows
-
-Pin this repository by commit; the Update workflow updates the pins.
-
-`.github/workflows/ci.yml`:
+- `actions/ci-setup` installs Nix. `rust-cache: true` also installs kache; run Cargo as
+  `kache cargo -- <command>`.
+- Short checks share one job, `lint.sh`. It runs jactionlint on the workflows.
+- Slow jobs run only in the merge queue, on a schedule, by hand or on a tag (the `if:` below).
+- `ok` needs every job and fails when one failed or was cancelled.
+- Jobs run on `instabox-small`. A job without Nix runs on `ubuntu-slim`; `ubuntu-26.04` and macOS
+  are for work that needs that platform.
 
 ```yaml
 name: CI
@@ -180,19 +38,17 @@ on:
   pull_request:
   merge_group:
   schedule:
-    - cron: "0 16 * * *" # every job on main, which also keeps main's caches warm
+    - cron: "0 16 * * *"
   workflow_dispatch:
 permissions:
   contents: read
-# A new push to a pull request stops its older run; a push to main does not stop the schedule.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
-env:
-  CARGO_TERM_COLOR: always
 jobs:
   lint:
     runs-on: instabox-small
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@<sha> # v7.0.1
         with:
@@ -204,6 +60,7 @@ jobs:
   kubernetes:
     if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')
     runs-on: instabox-small
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@<sha> # v7.0.1
         with:
@@ -217,50 +74,17 @@ jobs:
     if: always()
     needs: [lint, kubernetes]
     runs-on: ubuntu-slim
+    timeout-minutes: 5
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 ```
 
-`.github/workflows/release.yml`:
+## Change files
 
-```yaml
-name: Release
-on:
-  push:
-    tags: ["v[0-9]*"] # the shared workflow checks the rest (SemVer)
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to rehearse (v0.1.1); a rehearsal never publishes"
-        required: true
-permissions:
-  contents: read
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-jobs:
-  build:
-    uses: zeabur-oss/.github/.github/workflows/release-build.yml@<sha> # main
-    permissions:
-      contents: read
-    with:
-      version: ${{ inputs.version }}
-  release:
-    if: github.event_name == 'push' # a rehearsal never publishes
-    needs: build
-    uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
-    permissions:
-      contents: write
-      packages: write
-      id-token: write
-      attestations: write
-    with:
-      version: ${{ needs.build.outputs.version }}
-      platforms: ${{ needs.build.outputs.platforms }}
-```
-
-`.github/workflows/changeset.yml`:
+A pull request that users notice adds a change file: `knope document-change` writes it to
+`.changeset/`. The Changeset check fails a `feat`, `fix` or `perf` title, or any title with `!`,
+that has neither a change file nor the label `changelog: none`.
 
 ```yaml
 name: Changeset
@@ -274,7 +98,21 @@ jobs:
     uses: zeabur-oss/.github/.github/workflows/changeset.yml@<sha> # main
 ```
 
-`.github/workflows/release-pr.yml`:
+`knope.toml` needs a `prepare-release` workflow whose `PrepareRelease` step writes `CHANGELOG.md`
+and the version to the manifest in `versioned_files`.
+
+## Releasing
+
+1. Run the Release pull request workflow, with `prerelease: rc` for a release candidate. Check the
+   pull request it opens, and edit `CHANGELOG.md` on its branch if needed.
+2. To rehearse, run the Release workflow by hand with the version. A rehearsal publishes nothing.
+3. Merge the release pull request. zeabur-oss-bot tags it and leaves a draft release, and the tag's
+   Release workflow adds the assets.
+4. Check the draft and publish it. A published release can't change.
+
+A tag is `vX.Y.Z` ([SemVer](https://semver.org/spec/v2.0.0.html)). `vX.Y.Z-rc.N` is a pre-release
+and is never marked latest. Before 1.0, a `major` change file makes a minor release and `minor`
+makes a patch.
 
 ```yaml
 name: Release pull request
@@ -285,7 +123,7 @@ on:
         description: "Version instead of the one the change files give (v0.2.0); empty for theirs"
         default: ""
       prerelease:
-        description: "Pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release"
+        description: "Pre-release label (rc, beta); empty for a normal release"
         default: ""
   push:
     branches: [main]
@@ -306,7 +144,90 @@ jobs:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
-`.github/workflows/update.yml`, Monday 02:30 in Asia/Taipei:
+```yaml
+name: Release
+on:
+  push:
+    tags: ["v[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to rehearse (v0.1.1); a rehearsal never publishes"
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    uses: zeabur-oss/.github/.github/workflows/release-build.yml@<sha> # main
+    permissions:
+      contents: read
+    with:
+      version: ${{ inputs.version }}
+  release:
+    if: github.event_name == 'push'
+    needs: build
+    uses: zeabur-oss/.github/.github/workflows/release.yml@<sha> # main
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      version: ${{ needs.build.outputs.version }}
+      platforms: ${{ needs.build.outputs.platforms }}
+```
+
+`release-build.yml` also takes `platforms` (a JSON array of `{os, arch, runner}`), `runner`,
+`telemetry-key` and `signing-environment`. `release.yml` also takes `finish`, `finish-platforms`,
+`runner` and `telemetry-key`.
+
+To sign macOS builds, pass `signing-environment`: an environment limited to `main` and `v*` tags
+that holds `APPLE_CERTIFICATE_P12` (base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_API_KEY_P8`,
+`APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID`. Without it, macOS builds are unsigned.
+
+### `scripts/release.ts`
+
+The workflows run `bun scripts/release.ts <stage>` in the repository's dev shell. The stages use
+the library of `@zeabur-oss/release` ([release/README.md](release/README.md)).
+
+| Stage     | Arguments                                  | Does                                                                         |
+| --------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
+| `check`   | `<version>`                                | Fails unless the manifests have this version.                                |
+| `build`   | `<version> <os> <arch> <dist>`             | Builds one platform into `<dist>` and smokes it. Logs go to `$CI_ARTIFACTS`. |
+| `sign`    | `<version> <os> <arch> <dist>`             | On macOS with `signing-environment`: signs and notarizes the build.          |
+| `publish` | `<version> <artifacts> <published>`        | Pushes by digest, signs and writes `<published>/subjects.json`.              |
+| `finish`  | `<version> <os> <arch> <artifacts> <dist>` | With `finish: true`: what needs the published digests, such as an installer. |
+| `assets`  | `<version> <artifacts> <assets>`           | Copies the release's files into `<assets>`.                                  |
+| `verify`  | `<version> <os> <arch> <downloaded>`       | Checks the draft's images and charts.                                        |
+
+`<artifacts>` holds `candidate-<os>-<arch>`, `published` and `finish-<os>-<arch>`.
+
+A Rust repository also runs `bun x zeabur-oss-unsafe-report` in `lint.sh`. It fails on a shipped
+crate with `unsafe` or native code that `supply-chain/unsafe-allowlist.toml` does not approve.
+
+### Verify a release
+
+The signer is this repository's `release.yml`, not the caller's:
+
+```sh
+cosign verify <image>@<digest> \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/zeabur-oss/\.github/\.github/workflows/release\.yml@' \
+  --certificate-github-workflow-repository zeabur-oss/<repo> \
+  --certificate-github-workflow-ref refs/tags/<version>
+gh attestation verify <file> --repo zeabur-oss/<repo> \
+  --signer-workflow zeabur-oss/.github/.github/workflows/release.yml
+```
+
+## Update
+
+Every Monday at 02:30 Asia/Taipei, Update opens `update/zeabur-oss` as zeabur-oss-bot. It moves
+every pin of this repository to the head of `main` (the flake input, each `uses:`, and
+`@zeabur-oss/release`) and lists the commits in between. A `!` in a subject marks a change you must
+act on. Run it by hand when a change is urgent. Renovate leaves these pins alone.
 
 ```yaml
 name: Update
@@ -323,26 +244,13 @@ jobs:
       private-key: ${{ secrets.ZEABUR_OSS_BOT_PRIVATE_KEY }}
 ```
 
-`renovate.json`: `{"extends": ["github>zeabur-oss/.github"], ...}` plus the repository's
-`enabledManagers` and package rules.
+## Renovate
 
-## Releasing
-
-1. Every pull request that users notice adds a change file (`knope document-change`).
-2. Run the repository's Release pull request workflow, with `prerelease: rc` for a release
-   candidate. Check the pull request it opens; edit `CHANGELOG.md` on its branch if needed.
-3. Optionally rehearse: run the repository's Release workflow by hand with the version.
-4. Merge the release pull request. zeabur-oss-bot tags the merge commit and leaves a draft release
-   with the `CHANGELOG.md` section; the tag's workflow adds the assets to it.
-5. Check the draft and publish it. Releases are immutable once published.
-
-A tag is a [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html) version with a `v` and no build
-metadata. `vX.Y.Z`, `v0.*` included, is a normal release. A tag with a pre-release part
-(`v0.1.2-rc.0`) is a GitHub pre-release, never marked latest. knope gives a pre-release its own
-`CHANGELOG.md` section with every change since the last normal release and keeps the change files,
-so the normal release lists them all again. Before 1.0, knope makes a `major` change a minor
-release and a `minor` change a patch.
+`default.json` checks third-party updates daily from 03:00 to 06:59 Asia/Taipei, and waits seven
+days after a release. `@zeabur-oss/*` and `zeabur-oss/*` move at once. A repository that pins the
+`rancher/k3s` image or `INSTALL_K3S_VERSION` also extends `github>zeabur-oss/.github:k3s` and
+enables `custom.regex`.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md): signed-off commits ([DCO](DCO)) and Conventional Commits.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
