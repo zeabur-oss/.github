@@ -1,6 +1,6 @@
 # zeabur-oss/.github
 
-The CI setup action and the zizmor, DCO, changeset, release pull request, release and update
+The CI setup action and the changeset, release pull request, release and update
 workflows every zeabur-oss repository calls, the shared Renovate preset. A
 repository keeps
 what is its own in its CI workflow and scripts; what is here only checks out, installs Nix, caches
@@ -25,7 +25,8 @@ that starts with `set -euo pipefail` and `cd "$(dirname "$0")/../.."`.
   `if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')`.
 - The job `ok` (named `ci / ok`, the check rulesets require) needs every other job, runs
   `if: always()` and fails when one of them failed or was cancelled.
-- `zizmor.yml` runs zizmor on the caller's `.github`.
+- `lint.sh` runs jactionlint, which also holds zizmor's audits, on the workflows and actions. DCO is
+  checked by the DCO app, which needs no workflow.
 
 ### `scripts/release.ts`
 
@@ -208,18 +209,14 @@ jobs:
         with:
           rust-cache: true
       - run: nix develop -c scripts/ci/kubernetes.sh
-  zizmor:
-    uses: zeabur-oss/.github/.github/workflows/zizmor.yml@<sha> # main
   ok:
     name: ci / ok
     if: always()
-    needs: [lint, kubernetes, zizmor]
+    needs: [lint, kubernetes]
     runs-on: ubuntu-slim
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
-  dco:
-    uses: zeabur-oss/.github/.github/workflows/dco.yml@<sha> # main
 ```
 
 `.github/workflows/release.yml`:
