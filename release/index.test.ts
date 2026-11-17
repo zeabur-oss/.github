@@ -230,10 +230,6 @@ describe("against a registry", () => {
     Object.assign(process.env, {
       PATH: `${join(work, "bin")}:${process.env.PATH}`,
       CALLS: join(work, "calls.log"),
-      RELEASE_CERT_IDENTITY_REGEXP:
-        "^https://github\\.com/zeabur-oss/\\.github/\\.github/workflows/release\\.yml@",
-      RELEASE_SIGNER_WORKFLOW:
-        "zeabur-oss/.github/.github/workflows/release.yml",
       RELEASE_SOURCE_REPOSITORY: "zeabur-oss/smoke",
       RELEASE_SOURCE_REF: "refs/tags/v0.0.1",
     });
