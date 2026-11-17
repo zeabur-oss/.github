@@ -12,6 +12,12 @@ name = "prepare-release"
 [[workflows.steps]]
 type = "PrepareRelease"
 
+# knope writes CHANGELOG.md without a blank line before the new heading, and package.json without
+# its final newline.
+[[workflows.steps]]
+type = "Command"
+command = "bun fmt CHANGELOG.md package.json"
+
 [[workflows]]
 name = "document-change"
 
