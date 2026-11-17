@@ -109,9 +109,10 @@ permission of its own.
 `update.yml` opens one pull request, `update/zeabur-oss`, as zeabur-oss-bot. It moves every pin of
 this repository to one commit: the flake input in `flake.lock` (its locked revision is the commit
 for the rest), each `uses:` under `.github`, and `@zeabur-oss/release` in `package.json` with
-`bun install`. Nothing is dispatched on a push to `main`; a
-caller runs it on Monday 02:30 in Asia/Taipei, or by hand with `workflow_dispatch` when a change is
-urgent. Renovate leaves these pins alone. This repository and each caller need the bot installed,
+`bun install`. The pull request lists the commits since the last pin, and a `!` in a subject marks a
+change the caller must act on. Nothing is dispatched on a push to `main`; a caller runs it on Monday
+02:30 in Asia/Taipei, or by hand with `workflow_dispatch` when a change is urgent. Renovate leaves
+these pins alone. This repository and each caller need the bot installed,
 `ZEABUR_OSS_BOT_PRIVATE_KEY` and `ZEABUR_OSS_BOT_CLIENT_ID` visible to them, and Workflows write for
 the bot, since most pins are under `.github/workflows`.
 

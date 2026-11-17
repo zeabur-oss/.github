@@ -1,9 +1,10 @@
 name: Update
 
 # Moves every pin of zeabur-oss/.github in the caller to the newest commit of its main and opens
-# one pull request as zeabur-oss-bot (actions/bot-pr). The pins come first: the flake input in flake.lock, each `uses:` under .github
-# and @zeabur-oss/release in package.json and bun.lock. The flake input is updated first and its
-# locked revision is the commit for the rest.
+# one pull request as zeabur-oss-bot (actions/bot-pr) that lists the commits in between. The pins
+# are the flake input in flake.lock, each `uses:` under .github and @zeabur-oss/release in
+# package.json and bun.lock. The flake input is updated first and its locked revision is the
+# commit for the rest.
 on:
   workflow_call:
     secrets:
@@ -24,7 +25,10 @@ jobs:
           persist-credentials: false
       - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
       - id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          old=$(grep -rhoE 'zeabur-oss/\.github/[^@[:space:]]+@[0-9a-f]{40}' .github | sed -n '1s/.*@//p')
           input=""
           if [[ -f flake.lock ]]; then
             input=$(jq -r '.nodes as $n | $n.root.inputs | to_entries[]
@@ -46,6 +50,16 @@ jobs:
             nix develop --command bun install
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [[ -n "$old" && "$old" != "$sha" ]]; then
+            # Each subject links its pull request in zeabur-oss/.github, not in the caller.
+            {
+              echo "log<<EOF"
+              gh api "repos/zeabur-oss/.github/compare/${old}...${sha}" --jq '.commits[]
+                | "- " + (.commit.message | split("\n")[0]
+                | gsub("\\(#(?<n>[0-9]+)\\)"; "(zeabur-oss/.github#\(.n))"))'
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
       - uses: zeabur-oss/.github/actions/bot-pr@1e30fc7b457256c477278e2869e2a86a151fb0b0 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
@@ -54,4 +68,6 @@ jobs:
           branch: update/zeabur-oss
           title: "chore(deps): update zeabur-oss/.github"
           body: |
-            Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}.
+            Moves every pin of zeabur-oss/.github to zeabur-oss/.github@${{ steps.pin.outputs.sha }}. A `!` in a subject marks a change the caller must act on.
+
+            ${{ steps.pin.outputs.log }}
