@@ -6,6 +6,7 @@ import { parseArgs } from "node:util";
 import { changeset, prepareRelease, releaseOf } from "./changes";
 import {
   absent,
+  chartPins,
   checksums,
   Failure,
   notes,
@@ -23,10 +24,10 @@ const usage = `usage:
   zeabur-oss-release checksums <dir>
   zeabur-oss-release verify-assets <dir>
   zeabur-oss-release absent <ref>...
-  zeabur-oss-release push-image --out <dir> [--label <name>] <repo:tag> <os/arch=archive.tar>...
+  zeabur-oss-release push-image --out <dir> [--label <name>] [--pin <values.yaml>:<key>] <repo:tag> <os/arch=archive.tar>...
   zeabur-oss-release push-chart --out <dir> <oci://repo> <chart.tgz>
   zeabur-oss-release pin-digest <values.yaml> <key.path> <sha256:digest>
-  zeabur-oss-release verify-image --digests <file> [--label <name>] <os/arch>...
+  zeabur-oss-release verify-image --digests <file> [--label <name>] [--chart <chart.tgz> --key <key>] <os/arch>...
   zeabur-oss-release verify-chart --digests <file> <chart.tgz>
   zeabur-oss-release changeset <base> <head> <title> [--none]
   zeabur-oss-release prepare-release [--version <vX.Y.Z>] [--prerelease <label>]
@@ -45,6 +46,9 @@ async function main(args: string[]) {
         out: { type: "string" },
         label: { type: "string" },
         digests: { type: "string" },
+        pin: { type: "string" },
+        chart: { type: "string" },
+        key: { type: "string" },
       },
       allowPositionals: true,
     });
@@ -69,7 +73,7 @@ async function main(args: string[]) {
     command === "push-image" &&
     rest.length >= 2 &&
     values.out &&
-    only("out", "label")
+    only("out", "label", "pin")
   ) {
     const archives = Object.fromEntries(
       rest.slice(1).map((a) => {
@@ -79,11 +83,21 @@ async function main(args: string[]) {
       }),
     );
     await mkdir(values.out, { recursive: true });
-    console.log(
-      String(
-        await pushImage(values.out, values.label ?? "", rest[0], archives),
-      ),
+    const index = await pushImage(
+      values.out,
+      values.label ?? "",
+      rest[0],
+      archives,
     );
+    if (values.pin) {
+      const [file, key] = values.pin.split(":");
+      const valuesFile = Bun.file(file);
+      await Bun.write(
+        valuesFile,
+        pinDigest(await valuesFile.text(), key.split("."), index.digest),
+      );
+    }
+    console.log(String(index));
   } else if (
     command === "push-chart" &&
     rest.length === 2 &&
@@ -102,12 +116,14 @@ async function main(args: string[]) {
     command === "verify-image" &&
     rest.length > 0 &&
     values.digests &&
-    only("digests", "label")
-  )
-    console.log(
-      String(await verifyImage(values.digests, values.label ?? "", rest)),
-    );
-  else if (
+    only("digests", "label", "chart", "key") &&
+    !values.chart === !values.key
+  ) {
+    const index = await verifyImage(values.digests, values.label ?? "", rest);
+    if (values.chart && values.key)
+      await chartPins(values.chart, values.key, index);
+    console.log(String(index));
+  } else if (
     command === "verify-chart" &&
     rest.length === 1 &&
     values.digests &&

@@ -398,6 +398,15 @@ export async function verifyImage(
   return index;
 }
 
+// Fails unless the chart's values pin the image at `key` (a path such as "image") to the index.
+export async function chartPins(chart: string, key: string, index: Ref) {
+  let node: any = Bun.YAML.parse(await $`helm show values ${chart}`.text());
+  for (const part of key.split(".")) node = node?.[part];
+  const pinned = `${node?.repository}@${node?.digest}`;
+  if (pinned !== String(index))
+    fail(`the chart's ${key} is ${pinned}, not ${index}`);
+}
+
 // Returns the verified chart.
 export async function verifyChart(
   digestsFile: string,
