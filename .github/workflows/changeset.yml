@@ -10,7 +10,7 @@ on:
       runner:
         description: The runner of the job that runs the check in the caller's dev shell.
         type: string
-        default: ubuntu-26.04-arm
+        default: instabox-small
 
 permissions:
   contents: read
