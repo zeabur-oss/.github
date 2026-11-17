@@ -6,7 +6,7 @@
 // push* append to <out>/digests.txt and <out>/subjects.json. digests.txt has one line per image,
 // index or chart: its kind (`<label> <os>/<arch>`, `<label> index` or `chart`; an empty label is
 // left out), two spaces and the reference by digest. subjects.json is what the workflow attests.
-// verify* read the signer from the RELEASE_* variables the shared release workflow sets.
+// verify* read the signer from RELEASE_SOURCE_REPOSITORY and RELEASE_SOURCE_REF.
 import { $ } from "bun";
 import { appendFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { rmSync } from "node:fs";
@@ -205,27 +205,40 @@ export function pinDigest(
   return pinned;
 }
 
-// Who must have signed: the shared release workflow, run for this repository at the tag.
+// Who must have signed: the repository's own release workflow (.github/workflows/release.yml) at
+// the tag. RELEASE_SOURCE_REPOSITORY and RELEASE_SOURCE_REF name them; a workflow file of another
+// name sets RELEASE_WORKFLOW. A shared workflow that signs instead sets RELEASE_CERT_IDENTITY_REGEXP
+// and RELEASE_SIGNER_WORKFLOW (the shared release.yml, until every repository has its own).
 function signer() {
   const env = (name: string) => process.env[name] || fail(`${name} is not set`);
   const repository = env("RELEASE_SOURCE_REPOSITORY");
   const ref = env("RELEASE_SOURCE_REF");
+  const shared = process.env.RELEASE_SIGNER_WORKFLOW;
+  const path = `.github/workflows/${process.env.RELEASE_WORKFLOW || "release.yml"}`;
+  const identity = shared
+    ? [
+        "--certificate-identity-regexp",
+        env("RELEASE_CERT_IDENTITY_REGEXP"),
+        "--certificate-github-workflow-repository",
+        repository,
+        "--certificate-github-workflow-ref",
+        ref,
+      ]
+    : [
+        "--certificate-identity",
+        `https://github.com/${repository}/${path}@${ref}`,
+      ];
   return {
     cosign: [
       "--certificate-oidc-issuer",
       "https://token.actions.githubusercontent.com",
-      "--certificate-identity-regexp",
-      env("RELEASE_CERT_IDENTITY_REGEXP"),
-      "--certificate-github-workflow-repository",
-      repository,
-      "--certificate-github-workflow-ref",
-      ref,
+      ...identity,
     ],
     gh: [
       "--repo",
       repository,
       "--signer-workflow",
-      env("RELEASE_SIGNER_WORKFLOW"),
+      shared ?? `${repository}/${path}`,
       "--source-ref",
       ref,
     ],
@@ -381,7 +394,7 @@ export async function verifyImage(
     await $`cosign verify ${id.cosign} ${ref}`.quiet();
     await $`gh attestation verify oci://${ref} ${id.gh}`;
   }
-  console.log(`verified ${index}`);
+  console.error(`verified ${index}`);
   return index;
 }
 
@@ -395,6 +408,6 @@ export async function verifyChart(
   await chartIs(ref, chart);
   await $`cosign verify ${id.cosign} ${ref}`.quiet();
   await $`gh attestation verify oci://${ref} ${id.gh}`;
-  console.log(`verified ${ref}`);
+  console.error(`verified ${ref}`);
   return ref;
 }
