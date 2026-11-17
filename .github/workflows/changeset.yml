@@ -26,9 +26,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
-      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+      - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
         with:
-          use-flakehub: false
+          upstream-cache-filter: true
       - run: nix develop --command bun install --frozen-lockfile
       - env:
           BASE: ${{ github.event.pull_request.base.sha }}
