@@ -41,4 +41,5 @@ for a fix. The Changeset check enforces this; a change that only touches this re
 takes the label `changelog: none`. Say in the file what a caller changes when its pin moves.
 
 To release, run the Release pull request workflow, merge the pull request it opens, and
-zeabur-oss-bot tags the merge commit.
+zeabur-oss-bot tags the merge commit and leaves a draft release with the `CHANGELOG.md` section.
+Publish the draft when it reads right.
