@@ -41,7 +41,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
+      - uses: zeabur-oss/.github/actions/ci-setup@f3ae87d7ef3c37447432e398200d200b546dfa46 # main
       - name: Install the packages
         run: nix develop --command bun install --frozen-lockfile
       - id: knope
@@ -64,7 +64,7 @@ jobs:
             nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$TAG"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
-      - uses: zeabur-oss/.github/actions/bot-pr@bc2fba94d807c947f554f3b75be5623d86473067 # main
+      - uses: zeabur-oss/.github/actions/bot-pr@f3ae87d7ef3c37447432e398200d200b546dfa46 # main
         with:
           client-id: ${{ vars.ZEABUR_OSS_BOT_CLIENT_ID }}
           private-key: ${{ secrets.private-key }}
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
+      - uses: zeabur-oss/.github/actions/ci-setup@f3ae87d7ef3c37447432e398200d200b546dfa46 # main
       - name: Install the packages
         run: nix develop --command bun install --frozen-lockfile
       - id: release
