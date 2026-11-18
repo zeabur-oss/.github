@@ -5,19 +5,12 @@ name: Release pull request
 # zeabur-oss-bot opens `chore(release): vX.Y.Z` from release/next into main. One release pull request at a time: merge
 # or close it before preparing another. With a pre-release label, knope writes vX.Y.Z-<label>.N
 # with every change since the last normal release and keeps the change files for it. Once that pull
-# request is merged, zeabur-oss-bot tags the commit and leaves a draft release with the CHANGELOG.md
-# section, which starts the caller's release; a tag pushed with GITHUB_TOKEN would start no workflow.
+# request is merged, zeabur-oss-bot tags the commit, which starts the caller's release; a tag pushed
+# with GITHUB_TOKEN would start no workflow. The caller's release creates the draft release with its
+# files, so a draft is never published without them.
 on:
   workflow_call:
     inputs:
-      name:
-        description: The product, the release's title before the version (Zeabur Builder).
-        type: string
-        required: true
-      docs:
-        description: The documentation the notes end with a link to (https://oss.zeabur.com/docs/builder/); empty for none.
-        type: string
-        default: ""
       version:
         description: The version to release instead of the one the change files give (v0.2.0); empty for theirs.
         type: string
@@ -107,19 +100,9 @@ jobs:
           private-key: ${{ secrets.private-key }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-      - name: Tag the commit and leave the draft release, its title and notes
+      - name: Tag the commit
         if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           TAG: ${{ steps.release.outputs.tag }}
-          NAME: ${{ inputs.name }}
-          DOCS: ${{ inputs.docs }}
-        run: |
-          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
-          docs=()
-          [[ -z "$DOCS" ]] || docs=(--docs "$DOCS")
-          nix develop --command bun x zeabur-oss-release notes CHANGELOG.md "$TAG" "${docs[@]}" >notes.md
-          # GitHub never marks a pre-release latest.
-          prerelease=()
-          [[ "$TAG" != *-* ]] || prerelease=(--prerelease)
-          gh release create "$TAG" --verify-tag --draft "${prerelease[@]}" --title "$NAME $TAG" --notes-file notes.md
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent

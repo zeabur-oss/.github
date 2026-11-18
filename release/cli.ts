@@ -8,6 +8,7 @@ import {
   absent,
   chartPins,
   checksums,
+  draft,
   Failure,
   notes,
   pinDigest,
@@ -22,6 +23,7 @@ import {
 const usage = `usage:
   zeabur-oss-release notes <CHANGELOG.md> <vX.Y.Z> [--docs <url>]
   zeabur-oss-release checksums <dir>
+  zeabur-oss-release draft <CHANGELOG.md> <vX.Y.Z> <dir> --name <product> [--docs <url>]
   zeabur-oss-release verify-assets <dir>
   zeabur-oss-release absent <ref>...
   zeabur-oss-release push-image --out <dir> [--label <name>] [--pin <values.yaml>:<key>] <repo:tag> <os/arch=archive.tar>...
@@ -40,6 +42,7 @@ async function main(args: string[]) {
       args,
       options: {
         docs: { type: "string" },
+        name: { type: "string" },
         none: { type: "boolean" },
         version: { type: "string" },
         prerelease: { type: "string" },
@@ -65,6 +68,13 @@ async function main(args: string[]) {
     process.stdout.write(await notes(rest[0], rest[1], values.docs));
   else if (command === "checksums" && rest.length === 1 && only())
     await checksums(rest[0]);
+  else if (
+    command === "draft" &&
+    rest.length === 3 &&
+    values.name &&
+    only("name", "docs")
+  )
+    await draft(rest[0], rest[1], rest[2], values.name, values.docs);
   else if (command === "verify-assets" && rest.length === 1 && only())
     await verifyAssets(rest[0]);
   else if (command === "absent" && rest.length > 0 && only())

@@ -80,13 +80,19 @@ release workflow sets.
 
 ## Command
 
-The release workflow runs three of the functions as `bun x zeabur-oss-release` (`release/cli.ts`):
+The release workflow runs these functions as `bun x zeabur-oss-release` (`release/cli.ts`):
 
 ```sh
-zeabur-oss-release notes CHANGELOG.md v0.1.1 --docs https://oss.zeabur.com/docs/builder/ >release/notes.md
+zeabur-oss-release notes CHANGELOG.md v0.1.1 --docs https://oss.zeabur.com/docs/builder/  # the notes
 zeabur-oss-release checksums release/assets     # SHA256SUMS of every asset, signed
+zeabur-oss-release draft CHANGELOG.md v0.1.1 release/assets --name "Zeabur Builder" \
+  --docs https://oss.zeabur.com/docs/builder/   # the draft release, with its title, notes and files
 zeabur-oss-release verify-assets downloaded     # the signature, the sums, each attestation
 ```
+
+`draft` creates the draft and uploads every file in one `gh release create`, so no draft exists
+before its files: a maintainer can publish a draft at any time, and a published release takes no
+more files. It deletes a draft that an earlier run left, and stops if the release is published.
 
 The changeset and release pull request workflows run the rest, from `changes.ts`, in the
 repository's root:

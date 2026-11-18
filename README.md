@@ -107,10 +107,10 @@ and the version to the manifest in `versioned_files`.
 1. Run the Release pull request workflow, with `prerelease: rc` for a release candidate. Check the
    pull request it opens, and edit `CHANGELOG.md` on its branch if needed.
 2. To rehearse, run the Release workflow by hand with the version. A rehearsal publishes nothing.
-3. Merge the release pull request. zeabur-oss-bot tags it and creates a draft release, and the
-   tag's Release workflow adds the assets. A tag pushed by hand needs
-   `gh release create <tag> --draft` first.
-4. Check the draft and publish it. A published release can't change.
+3. Merge the release pull request. zeabur-oss-bot tags it, and the tag's Release workflow creates
+   the draft release with all its files, then verifies it.
+4. When the Release workflow has passed, check the draft and publish it. A published release
+   can't change and takes no more files.
 
 A tag is `vX.Y.Z` ([SemVer](https://semver.org/spec/v2.0.0.html)). `vX.Y.Z-rc.N` is a pre-release
 and is never marked latest. Before 1.0, a `major` change file makes a minor release and `minor`
@@ -138,8 +138,6 @@ jobs:
   release-pr:
     uses: zeabur-oss/.github/.github/workflows/release-pr.yml@<sha> # main
     with:
-      name: Zeabur Example
-      docs: https://oss.zeabur.com/docs/example/
       version: ${{ inputs.version }}
       prerelease: ${{ inputs.prerelease }}
     secrets:
@@ -154,8 +152,10 @@ Each repository writes its own `.github/workflows/release.yml`, with these jobs:
 - `build`, one job for each architecture: build, smoke, and upload the archives.
 - `publish`: `zeabur-oss-release push-image` and `push-chart` push the archives that were smoked,
   by digest, and sign them.
-- `attest`, `assets` (`checksums`, then `gh release upload` to the draft) and `verify`
-  (`verify-assets`, `verify-image`, `verify-chart`).
+- `attest`, `release` (`checksums`, then
+  `draft CHANGELOG.md <tag> <assets> --name "Zeabur Example" --docs https://oss.zeabur.com/docs/example/`,
+  which creates the draft with its title, notes and files in one step) and `verify` (`verify-assets`,
+  `verify-image`, `verify-chart`, on the draft).
 
 Each step is a shell line in the dev shell (`defaults.run.shell: nix develop --command bash -eo
 pipefail {0}`) that calls crane, helm, cosign, gh or `bun x zeabur-oss-release`

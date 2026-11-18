@@ -334,6 +334,34 @@ export async function notes(
   return text;
 }
 
+// Creates the draft release of a tag with its title, notes and every file in <dir> in one
+// `gh release create`, so no draft exists before its files. A maintainer can publish a draft at
+// any time, and a published release takes no more files. A draft that an earlier run left is
+// deleted first; a published release stops the run. GitHub never marks a pre-release latest.
+export async function draft(
+  changelog: string,
+  tag: string,
+  dir: string,
+  name: string,
+  docs?: string,
+) {
+  const body = await notes(changelog, tag, docs);
+  const files = (await readdir(dir)).sort().map((f) => join(dir, f));
+  if (files.length === 0) fail(`${dir} has no files for the release`);
+  const releases = (
+    await $`gh api --paginate repos/{owner}/{repo}/releases --jq ${`.[] | select(.tag_name == "${tag}") | "\\(.id) \\(.draft)"`}`.text()
+  )
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split(" "));
+  if (releases.some(([, isDraft]) => isDraft !== "true"))
+    fail(`release ${tag} is already published`);
+  for (const [id] of releases)
+    await $`gh api -X DELETE repos/{owner}/{repo}/releases/${id}`;
+  const prerelease = tag.includes("-") ? ["--prerelease"] : [];
+  await $`gh release create ${tag} --verify-tag --draft ${prerelease} --title ${`${name} ${tag}`} --notes ${body} ${files}`;
+}
+
 // The file names a SHA256SUMS lists, whole: sha256sum writes `<sha256>  <name>`.
 // The files of a sha256sum list and their SHA-256s.
 export function sums(list: string): Map<string, string> {
