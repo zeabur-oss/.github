@@ -396,9 +396,11 @@ describe("draft", () => {
   const calls = async () =>
     (await Bun.file(join(work, "calls.log")).text()).trim().split("\n");
   // gh lists the releases in $GH_RELEASES as `<id> <draft>` lines and logs every call.
+  // Bun's shell copies process.env when it is first used, and on $.env only.
   const run = async (releases: string, tag = "v0.0.1", docs?: string) => {
     await rm(join(work, "calls.log"), { force: true });
     process.env.GH_RELEASES = releases;
+    $.env(process.env);
     await draft(changelog, tag, assets, "Smoke", docs);
     return calls();
   };
@@ -430,6 +432,7 @@ describe("draft", () => {
 
   afterAll(async () => {
     process.env = saved;
+    $.env(process.env);
     await rm(work, { recursive: true, force: true });
   });
 
