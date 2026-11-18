@@ -45,6 +45,11 @@
       "groupName": "zeabur-oss/.github"
     },
     {
+      "description": "Playwright on npm must be the playwright-driver version of nixpkgs, which gives the browsers (PLAYWRIGHT_BROWSERS_PATH). A newer npm version looks for a browser build that nixpkgs does not have, so it moves with flake.lock instead.",
+      "matchPackageNames": ["@playwright/test", "playwright", "playwright-core"],
+      "enabled": false
+    },
+    {
       "description": "Our own packages and releases (@zeabur-oss/* on npm, zeabur-oss/* tags and releases) move as soon as they are published; third-party packages wait seven days.",
       "matchPackageNames": ["@zeabur-oss/**", "zeabur-oss/**"],
       "minimumReleaseAge": null
