@@ -19,6 +19,7 @@ import {
   Failure,
   Ref,
   checksums,
+  draft,
   parseDigests,
   pinDigest,
   pushChart,
@@ -384,6 +385,93 @@ describe("against a registry", () => {
 
     await writeFile(join(assets, "extra.txt"), "extra");
     await expect(verifyAssets(assets)).rejects.toThrow("not the assets");
+  });
+});
+
+describe("draft", () => {
+  let work: string;
+  let assets: string;
+  let changelog: string;
+  let saved: NodeJS.ProcessEnv;
+  const calls = async () =>
+    (await Bun.file(join(work, "calls.log")).text()).trim().split("\n");
+  // gh lists the releases in $GH_RELEASES as `<id> <draft>` lines and logs every call.
+  // Bun's shell copies process.env when it is first used, and on $.env only.
+  const run = async (releases: string, tag = "v0.0.1", docs?: string) => {
+    await rm(join(work, "calls.log"), { force: true });
+    process.env.GH_RELEASES = releases;
+    $.env(process.env);
+    await draft(changelog, tag, assets, "Smoke", docs);
+    return calls();
+  };
+
+  beforeAll(async () => {
+    work = await mkdtemp(join(tmpdir(), "release-draft-"));
+    await mkdir(join(work, "bin"));
+    await writeFile(
+      join(work, "bin", "gh"),
+      '#!/usr/bin/env bash\necho "gh $*" >>"$CALLS"\n' +
+        '[[ "$1 $2" != "api --paginate" ]] || printf %s "$GH_RELEASES"\n',
+    );
+    await chmod(join(work, "bin", "gh"), 0o755);
+    assets = join(work, "assets");
+    await mkdir(assets);
+    await writeFile(join(assets, "app.tar.gz"), "app");
+    await writeFile(join(assets, "SHA256SUMS"), "sums");
+    changelog = join(work, "CHANGELOG.md");
+    await writeFile(
+      changelog,
+      "# Changelog\n\n## 0.0.2-rc.1 (2026-11-18)\n\n- A candidate.\n\n## 0.0.1 (2026-11-01)\n\n- One fix.\n",
+    );
+    saved = { ...process.env };
+    Object.assign(process.env, {
+      PATH: `${join(work, "bin")}:${process.env.PATH}`,
+      CALLS: join(work, "calls.log"),
+    });
+  });
+
+  afterAll(async () => {
+    process.env = saved;
+    $.env(process.env);
+    await rm(work, { recursive: true, force: true });
+  });
+
+  test("creates the draft with its title, notes and files in one call", async () => {
+    const log = await run("", "v0.0.1", "https://oss.zeabur.com/docs/smoke/");
+    // The notes span lines, so the one call is several lines of the log.
+    expect(log.slice(1).join("\n")).toBe(
+      "gh release create v0.0.1 --verify-tag --draft --title Smoke v0.0.1 --notes - One fix.\n\n" +
+        "Install, upgrade and verify: [oss.zeabur.com/docs/smoke](https://oss.zeabur.com/docs/smoke/)\n" +
+        ` ${join(assets, "SHA256SUMS")} ${join(assets, "app.tar.gz")}`,
+    );
+  });
+
+  test("marks a pre-release", async () => {
+    const log = await run("", "v0.0.2-rc.1");
+    expect(log[1]).toBe(
+      "gh release create v0.0.2-rc.1 --verify-tag --draft --prerelease --title Smoke v0.0.2-rc.1 --notes - A candidate.",
+    );
+  });
+
+  test("replaces a draft an earlier run left", async () => {
+    const log = await run("41 true\n");
+    expect(log[1]).toBe("gh api -X DELETE repos/{owner}/{repo}/releases/41");
+    expect(log[2]).toStartWith("gh release create v0.0.1 ");
+  });
+
+  test("refuses a published release before it changes anything", async () => {
+    await expect(run("41 true\n42 false\n")).rejects.toThrow(
+      "release v0.0.1 is already published",
+    );
+    expect(await calls()).toHaveLength(1);
+  });
+
+  test("refuses a directory without files", async () => {
+    const empty = join(work, "empty");
+    await mkdir(empty);
+    await expect(draft(changelog, "v0.0.1", empty, "Smoke")).rejects.toThrow(
+      "has no files",
+    );
   });
 });
 
