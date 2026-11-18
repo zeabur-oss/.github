@@ -46,7 +46,11 @@
     },
     {
       "description": "Playwright on npm must be the playwright-driver version of nixpkgs, which gives the browsers (PLAYWRIGHT_BROWSERS_PATH). A newer npm version looks for a browser build that nixpkgs does not have, so it moves with flake.lock instead.",
-      "matchPackageNames": ["@playwright/test", "playwright", "playwright-core"],
+      "matchPackageNames": [
+        "@playwright/test",
+        "playwright",
+        "playwright-core"
+      ],
       "enabled": false
     },
     {
