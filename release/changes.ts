@@ -116,6 +116,7 @@ export async function prepareRelease(
   ];
   // stdout carries only the tag; knope's log and the steps it runs go to stderr.
   await $`knope prepare-release ${args} 1>&2`;
+  await keepFinalNewlines();
   const changelog = await Bun.file("CHANGELOG.md").text();
   const top = changelog.match(/^## (\S+) \(/m)?.[1];
   if (!top) fail("knope wrote no ## X.Y.Z (date) section to CHANGELOG.md");
@@ -127,4 +128,16 @@ export async function prepareRelease(
     .nothrow();
   if (tagged.exitCode === 0) fail(`${tag} is already tagged`);
   return tag;
+}
+
+// knope writes a JSON versioned file, such as package.json, without its final newline, and the
+// callers' formatters reject it. Puts the newline back on each file knope changed that had one.
+async function keepFinalNewlines() {
+  const changed = await $`git diff --name-only --diff-filter=M HEAD`.text();
+  for (const path of changed.split("\n").filter(Boolean)) {
+    const before = await $`git show ${`HEAD:${path}`}`.quiet().nothrow();
+    const after = await Bun.file(path).text();
+    if (before.text().endsWith("\n") && !after.endsWith("\n"))
+      await Bun.write(path, `${after}\n`);
+  }
 }

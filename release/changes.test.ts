@@ -86,6 +86,7 @@ describe("prepareRelease", () => {
     dir = await mkdtemp(join(tmpdir(), "changes-"));
     process.chdir(dir);
     await Bun.write("Cargo.toml", '[workspace.package]\nversion = "0.1.1"\n');
+    await Bun.write("package.json", '{\n  "version": "0.1.1"\n}\n');
     await Bun.write(
       "CHANGELOG.md",
       "# Changelog\n\n## 0.1.1 (2026-10-20)\n\n- Old.\n",
@@ -93,7 +94,7 @@ describe("prepareRelease", () => {
     await Bun.write(
       "knope.toml",
       `[package]
-versioned_files = [{ path = "Cargo.toml", regex = '\\[workspace\\.package\\]\\nversion = "(?<version>[^"]+)"' }]
+versioned_files = [{ path = "Cargo.toml", regex = '\\[workspace\\.package\\]\\nversion = "(?<version>[^"]+)"' }, "package.json"]
 changelog = "CHANGELOG.md"
 
 [changes]
@@ -130,6 +131,13 @@ variables = { "$version" = "Version" }
   test("the change files give the version, a minor change before 1.0 a patch", async () => {
     expect(await prepareRelease()).toBe("v0.1.2");
     expect(await Bun.file("CHANGELOG.md").text()).toContain("## 0.1.2 (");
+    await reset();
+  });
+  test("a versioned file keeps its final newline", async () => {
+    await prepareRelease();
+    expect(await Bun.file("package.json").text()).toBe(
+      '{\n  "version": "0.1.2"\n}\n',
+    );
     await reset();
   });
   test("knope's output stays out of the printed tag", async () => {
