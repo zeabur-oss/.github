@@ -10,7 +10,6 @@ import {
   needsChangeFile,
   packages,
   prepareRelease,
-  releaseOf,
 } from "./changes";
 import { Failure } from "./index";
 
@@ -75,18 +74,6 @@ describe("needsChangeFile", () => {
     "%s does not",
     (title) => expect(needsChangeFile(title)).toBe(false),
   );
-});
-
-describe("releaseOf", () => {
-  test("a squash-merged release pull request", () => {
-    expect(releaseOf("chore(release): v0.1.2 (#13)")).toBe("v0.1.2");
-    expect(releaseOf("chore(release): v0.2.0-rc.1")).toBe("v0.2.0-rc.1");
-  });
-  test.each([
-    "chore(release): 0.1.2",
-    "chore(release): v0.1.2 and more",
-    "fix: v0.1.2",
-  ])("%s is not one", (subject) => expect(releaseOf(subject)).toBeUndefined());
 });
 
 describe("prepareRelease", () => {

@@ -3,7 +3,7 @@
 import { $ } from "bun";
 import { mkdir } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { changeset, prepareRelease, releaseOf } from "./changes";
+import { changeset, prepareRelease } from "./changes";
 import {
   absent,
   chartPins,
@@ -14,7 +14,6 @@ import {
   pinDigest,
   pushChart,
   pushImage,
-  section,
   verifyAssets,
   verifyChart,
   verifyImage,
@@ -32,8 +31,7 @@ const usage = `usage:
   zeabur-oss-release verify-image --digests <file> [--label <name>] [--chart <chart.tgz> --key <key>] <os/arch>...
   zeabur-oss-release verify-chart --digests <file> <chart.tgz>
   zeabur-oss-release changeset <base> <head> <title> [--none]
-  zeabur-oss-release prepare-release [--version <vX.Y.Z>] [--prerelease <label>]
-  zeabur-oss-release release-of <commit subject>`;
+  zeabur-oss-release prepare-release [--version <vX.Y.Z>] [--prerelease <label>]`;
 
 async function main(args: string[]) {
   let parsed;
@@ -148,13 +146,7 @@ async function main(args: string[]) {
     only("version", "prerelease")
   )
     console.log(await prepareRelease(values.version, values.prerelease));
-  else if (command === "release-of" && rest.length === 1 && only()) {
-    const tag = releaseOf(rest[0]);
-    if (tag) {
-      section(await Bun.file("CHANGELOG.md").text(), tag);
-      console.log(tag);
-    }
-  } else throw new Failure(usage);
+  else throw new Failure(usage);
 }
 
 try {

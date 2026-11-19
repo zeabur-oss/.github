@@ -128,11 +128,3 @@ export async function prepareRelease(
   if (tagged.exitCode === 0) fail(`${tag} is already tagged`);
   return tag;
 }
-
-// The tag a merged release pull request's commit gets: its title, chore(release): vX.Y.Z, with the
-// (#N) of a squash merge. undefined for any other commit.
-export function releaseOf(subject: string): string | undefined {
-  return subject.match(
-    /^chore\(release\): (v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?: \(#\d+\))?$/,
-  )?.[1];
-}
