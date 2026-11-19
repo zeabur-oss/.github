@@ -15,11 +15,6 @@
   ],
   "packageRules": [
     {
-      "description": "The reusable workflows pin this repository's own actions. Every merge moves main, so move these pins by hand after a change under actions/.",
-      "matchPackageNames": ["zeabur-oss/.github"],
-      "enabled": false
-    },
-    {
       "description": "The hestia pin and its version input move together.",
       "matchPackageNames": ["Mic92/hestia"],
       "groupName": "hestia"
