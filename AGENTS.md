@@ -6,7 +6,7 @@ The shared CI and release workflows and the Renovate preset of every zeabur-oss 
 
 ```
 .github/workflows/         the shared workflows, and this repository's own Lint
-actions/                   the CI setup and bot pull request actions
+actions/                   the CI setup, bot pull request and release actions
 release/, checks/          @zeabur-oss/release
 scripts/ci/<job>.sh        the lint job of Lint
 ```

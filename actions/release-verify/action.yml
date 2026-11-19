@@ -1,0 +1,31 @@
+name: Release verify
+description: >-
+  Checks out, sets up the dev shell, downloads the draft release's files to `downloaded/` and
+  verifies them as a user would: the signature of SHA256SUMS, the sums, and each file's
+  attestation, signed by the repository's own release.yml at the tag. The job's own steps then
+  verify what is the repository's own. The job needs contents write, since GitHub shows a draft
+  only to a token that can push, and attestations read.
+inputs:
+  version:
+    description: The tag, vX.Y.Z.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: zeabur-oss/.github/actions/ci-setup@2d9e5e7eab9be03f9822ee9497639d4051f8b04d # main
+    - name: Install the packages
+      shell: nix develop --command bash -eo pipefail {0}
+      run: bun install --frozen-lockfile
+    - name: Download the draft's assets and verify them
+      shell: nix develop --command bash -eo pipefail {0}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+        RELEASE_SOURCE_REPOSITORY: ${{ github.repository }}
+        RELEASE_SOURCE_REF: refs/tags/${{ inputs.version }}
+      run: |
+        gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir downloaded
+        bun x zeabur-oss-release verify-assets downloaded

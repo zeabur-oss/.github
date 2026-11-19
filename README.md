@@ -181,13 +181,43 @@ Each repository writes its own `.github/workflows/release.yml`, with these jobs:
 - `build`, one job for each architecture: build, smoke, and upload the archives.
 - `publish`: `zeabur-oss-release push-image` and `push-chart` push the archives that were smoked,
   by digest, and sign them.
-- `attest`, `release` (`checksums`, then
-  `draft CHANGELOG.md <tag> <assets> --name "Zeabur Example" --docs https://oss.zeabur.com/docs/example/`,
-  which creates the draft with its title, notes and files in one step) and `verify` (`verify-assets`,
-  `verify-image`, `verify-chart`, on the draft).
+- `attest`: one job per image or chart that `publish` pushed, from its `subjects` output, with
+  `actions/attest`. It stays in the repository's `release.yml`: an attestation names the workflow
+  that ran it, and the signer must be the repository's own `release.yml`.
+- `release`: the job puts the files in `assets/`, then runs `actions/release-draft`, which signs
+  `SHA256SUMS`, attests it and creates the draft with its title, notes and files in one step.
+- `verify`: `actions/release-verify` checks out, downloads the draft's files to `downloaded/` and
+  runs `verify-assets`; the job's own steps then run `verify-image`, `verify-chart` and the rest.
 
-Each step is a shell line in the dev shell (`defaults.run.shell: nix develop --command bash -eo
-pipefail {0}`) that calls crane, helm, cosign, gh or `bun x zeabur-oss-release`
+```yaml
+release:
+  needs: [publish, attest]
+  runs-on: instabox-small
+  permissions:
+    contents: write
+    id-token: write
+    attestations: write
+  steps:
+    # checkout, ci-setup, bun install --frozen-lockfile, the files in assets/
+    - uses: zeabur-oss/.github/actions/release-draft@<sha> # main
+      with:
+        version: ${{ env.VERSION }}
+        name: Zeabur Example
+        docs: https://oss.zeabur.com/docs/example/
+verify:
+  needs: release
+  runs-on: instabox-small
+  permissions:
+    contents: write
+    attestations: read
+  steps:
+    - uses: zeabur-oss/.github/actions/release-verify@<sha> # main
+      with:
+        version: ${{ env.VERSION }}
+```
+
+Every other step is a shell line in the dev shell (`defaults.run.shell: nix develop --command
+bash -eo pipefail {0}`) that calls crane, helm, cosign, gh or `bun x zeabur-oss-release`
 ([release/README.md](release/README.md)). The signer is the repository's own `release.yml`:
 
 ```sh
