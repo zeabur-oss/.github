@@ -76,7 +76,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      startsWith(github.event.head_commit.message, 'chore(release): v')
+      contains(join(github.event.commits.*.message, ' '), 'chore(release): v')
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 15
     steps:
@@ -87,11 +87,16 @@ jobs:
       - name: Install the packages
         run: nix develop --command bun install --frozen-lockfile
       - id: release
-        name: Read the release from the commit subject
+        name: Find the release commit in the push
         run: |
-          subject=$(git log -1 --format=%s)
-          tag=$(nix develop --command bun x zeabur-oss-release release-of "$subject")
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          jq -r '.commits[] | [.id, (.message | split("\n")[0])] | @tsv' "$GITHUB_EVENT_PATH" |
+            while IFS=$'\t' read -r sha subject; do
+              tag=$(nix develop --command bun x zeabur-oss-release release-of "$subject")
+              if [ -n "$tag" ]; then
+                echo "tag=$tag" >> "$GITHUB_OUTPUT"
+                echo "sha=$sha" >> "$GITHUB_OUTPUT"
+              fi
+            done
       - id: app
         if: steps.release.outputs.tag != ''
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -100,9 +105,10 @@ jobs:
           private-key: ${{ secrets.private-key }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-      - name: Tag the commit
+      - name: Tag the release commit
         if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           TAG: ${{ steps.release.outputs.tag }}
-        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
+          SHA: ${{ steps.release.outputs.sha }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$SHA" --silent
