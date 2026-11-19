@@ -1,0 +1,41 @@
+name: Release draft
+description: >-
+  Writes and signs SHA256SUMS of every file in the assets directory, attests the checksums, and
+  creates the draft release of the version with its title, notes and every file. The job has
+  checked out, run ci-setup and `bun install`, filled the assets directory, and has the permissions
+  contents, id-token and attestations write.
+inputs:
+  version:
+    description: The tag, vX.Y.Z.
+    required: true
+  name:
+    description: The product, which titles the release ("Zeabur Builder").
+    required: true
+  docs:
+    description: The product's documentation, linked at the end of the notes; empty for none.
+    default: ""
+  assets:
+    description: The directory of the release's files.
+    default: assets
+runs:
+  using: composite
+  steps:
+    - name: Sign the checksums of the assets
+      shell: nix develop --command bash -eo pipefail {0}
+      env:
+        ASSETS: ${{ inputs.assets }}
+      run: bun x zeabur-oss-release checksums "$ASSETS"
+    - name: Attest the checksums
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+      with:
+        subject-checksums: ${{ inputs.assets }}/SHA256SUMS
+    # The draft is created with its files, never before: a published release takes no more files.
+    - name: Create the draft release with the assets
+      shell: nix develop --command bash -eo pipefail {0}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+        NAME: ${{ inputs.name }}
+        DOCS: ${{ inputs.docs }}
+        ASSETS: ${{ inputs.assets }}
+      run: bun x zeabur-oss-release draft CHANGELOG.md "$VERSION" "$ASSETS" --name "$NAME" ${DOCS:+--docs "$DOCS"}
