@@ -129,6 +129,7 @@ on:
         default: ""
   push:
     branches: [main]
+    paths: [CHANGELOG.md, .github/workflows/release-pr.yml]
 permissions:
   contents: read
 concurrency:

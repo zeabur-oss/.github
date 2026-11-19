@@ -100,7 +100,6 @@ repository's root:
 ```sh
 zeabur-oss-release changeset "$BASE" "$HEAD" "feat: a title" [--none]   # change files and title
 zeabur-oss-release prepare-release [--version v0.2.0] [--prerelease rc]  # knope; prints the tag
-zeabur-oss-release release-of "chore(release): v0.1.2 (#13)"            # the tag, or nothing
 ```
 
 ## What it holds to

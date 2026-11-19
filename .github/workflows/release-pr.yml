@@ -5,8 +5,10 @@ name: Release pull request
 # zeabur-oss-bot opens `chore(release): vX.Y.Z` from release/next into main. One release pull request at a time: merge
 # or close it before preparing another. With a pre-release label, knope writes vX.Y.Z-<label>.N
 # with every change since the last normal release and keeps the change files for it. Once that pull
-# request is merged, zeabur-oss-bot tags the commit, which starts the caller's release; a tag pushed
-# with GITHUB_TOKEN would start no workflow. The caller's release creates the draft release with its
+# request is merged, zeabur-oss-bot tags the last commit that changed CHANGELOG.md with the newest
+# section's version, unless that tag exists. That starts the caller's release; a tag pushed with
+# GITHUB_TOKEN would start no workflow. The caller runs this on a push to main that changes
+# CHANGELOG.md or its own release-pr.yml. The caller's release creates the draft release with its
 # files, so a draft is never published without them.
 on:
   workflow_call:
@@ -73,25 +75,25 @@ jobs:
           body: ${{ steps.notes.outputs.body }}
 
   tag:
-    if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      startsWith(github.event.head_commit.message, 'chore(release): v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@93292d87f44b07cabee783cb213e4e6c9a46b965 # main
-      - name: Install the packages
-        run: nix develop --command bun install --frozen-lockfile
       - id: release
-        name: Read the release from the commit subject
+        name: Find the release that has no tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          subject=$(git log -1 --format=%s)
-          tag=$(nix develop --command bun x zeabur-oss-release release-of "$subject")
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          version=$(gh api "repos/$GITHUB_REPOSITORY/contents/CHANGELOG.md?ref=$GITHUB_SHA" \
+            -H "Accept: application/vnd.github.raw" | awk '/^## [^ ]+ \(/ && !v { v = $2 } END { print v }')
+          [ -n "$version" ] || { echo "CHANGELOG.md has no release section"; exit 1; }
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" --silent 2>/dev/null; then
+            echo "v$version is already tagged"
+            exit 0
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits?path=CHANGELOG.md&sha=$GITHUB_SHA&per_page=1" --jq '.[0].sha')
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - id: app
         if: steps.release.outputs.tag != ''
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -100,9 +102,10 @@ jobs:
           private-key: ${{ secrets.private-key }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-      - name: Tag the commit
+      - name: Tag the release commit
         if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           TAG: ${{ steps.release.outputs.tag }}
-        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" --silent
+          SHA: ${{ steps.release.outputs.sha }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$SHA" --silent
