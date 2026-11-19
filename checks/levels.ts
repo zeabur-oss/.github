@@ -43,11 +43,7 @@ export function levelErrors({ packages, metadata }: Metadata): string[] {
         errors.push(
           `${p.name} (level ${levels[p.name]}) depends on ${dep} (level ${levels[dep]})`,
         );
-      if (
-        modules?.crates.includes(dep) &&
-        !modules.crates.includes(p.name) &&
-        !modules.composers.includes(p.name)
-      )
+      if (modules?.crates.includes(dep) && !modules.composers.includes(p.name))
         errors.push(
           `${p.name} depends on the module crate ${dep}; only ${modules.composers.join(", ")} may`,
         );

@@ -48,17 +48,21 @@ describe("levelErrors", () => {
   });
 
   test("lets only a composer depend on a module crate", () => {
-    const modules = { crates: ["module"], composers: ["server"] };
+    const modules = { crates: ["module", "other"], composers: ["server"] };
     expect(
       levelErrors(
         workspace(
-          { levels: { module: 0, api: 1, server: 2 }, modules },
+          { levels: { module: 0, other: 1, api: 1, server: 2 }, modules },
           pkg("module"),
+          pkg("other", "module"),
           pkg("api", "module"),
-          pkg("server", "module", "api"),
+          pkg("server", "module", "other", "api"),
         ),
       ),
-    ).toEqual(["api depends on the module crate module; only server may"]);
+    ).toEqual([
+      "api depends on the module crate module; only server may",
+      "other depends on the module crate module; only server may",
+    ]);
   });
 
   test("keeps a pure crate to pure crates and the listed third-party crates", () => {
