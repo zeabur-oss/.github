@@ -85,7 +85,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(gh api "repos/$GITHUB_REPOSITORY/contents/CHANGELOG.md?ref=$GITHUB_SHA" \
-            -H "Accept: application/vnd.github.raw" | sed -nE 's/^## ([^ ]+) \(.*/\1/p;T;q')
+            -H "Accept: application/vnd.github.raw" | awk '/^## [^ ]+ \(/ && !v { v = $2 } END { print v }')
           [ -n "$version" ] || { echo "CHANGELOG.md has no release section"; exit 1; }
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" --silent 2>/dev/null; then
             echo "v$version is already tagged"
