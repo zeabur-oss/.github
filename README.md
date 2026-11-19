@@ -177,10 +177,11 @@ jobs:
 
 Each repository writes its own `.github/workflows/release.yml`, with these jobs:
 
-- `check`: the manifests and `CHANGELOG.md` have the version.
+- `check`: `zeabur-oss-release check-tag`, with each version the repository's manifests give, and
+  `--rehearsal` on a manual run.
 - `build`, one job for each architecture: build, smoke, and upload the archives.
-- `publish`: `zeabur-oss-release push-image` and `push-chart` push the archives that were smoked,
-  by digest, and sign them.
+- `publish`: `zeabur-oss-release unpublished "$VERSION"` stops if the release is published, then
+  `push-image` and `push-chart` push the archives that were smoked, by digest, and sign them.
 - `attest`: one job per image or chart that `publish` pushed, from its `subjects` output, with
   `actions/attest`. It stays in the repository's `release.yml`: an attestation names the workflow
   that ran it, and the signer must be the repository's own `release.yml`.

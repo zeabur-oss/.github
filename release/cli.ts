@@ -7,6 +7,7 @@ import { changeset, prepareRelease } from "./changes";
 import {
   absent,
   chartPins,
+  checkTag,
   checksums,
   draft,
   Failure,
@@ -14,6 +15,7 @@ import {
   pinDigest,
   pushChart,
   pushImage,
+  unpublished,
   verifyAssets,
   verifyChart,
   verifyImage,
@@ -21,6 +23,8 @@ import {
 
 const usage = `usage:
   zeabur-oss-release notes <CHANGELOG.md> <vX.Y.Z> [--docs <url>]
+  zeabur-oss-release check-tag <vX.Y.Z> --changelog <CHANGELOG.md> [--version <X.Y.Z>]... [--rehearsal]
+  zeabur-oss-release unpublished <vX.Y.Z>
   zeabur-oss-release checksums <dir>
   zeabur-oss-release draft <CHANGELOG.md> <vX.Y.Z> <dir> --name <product> [--docs <url>]
   zeabur-oss-release verify-assets <dir>
@@ -42,7 +46,9 @@ async function main(args: string[]) {
         docs: { type: "string" },
         name: { type: "string" },
         none: { type: "boolean" },
-        version: { type: "string" },
+        version: { type: "string", multiple: true },
+        changelog: { type: "string" },
+        rehearsal: { type: "boolean" },
         prerelease: { type: "string" },
         out: { type: "string" },
         label: { type: "string" },
@@ -64,6 +70,20 @@ async function main(args: string[]) {
     Object.keys(values).every((k) => names.includes(k));
   if (command === "notes" && rest.length === 2 && only("docs"))
     process.stdout.write(await notes(rest[0], rest[1], values.docs));
+  else if (
+    command === "check-tag" &&
+    rest.length === 1 &&
+    values.changelog &&
+    only("changelog", "version", "rehearsal")
+  )
+    await checkTag(
+      rest[0],
+      values.changelog,
+      values.version ?? [],
+      values.rehearsal === true,
+    );
+  else if (command === "unpublished" && rest.length === 1 && only())
+    await unpublished(rest[0]);
   else if (command === "checksums" && rest.length === 1 && only())
     await checksums(rest[0]);
   else if (
@@ -143,9 +163,10 @@ async function main(args: string[]) {
   else if (
     command === "prepare-release" &&
     rest.length === 0 &&
+    (values.version?.length ?? 0) <= 1 &&
     only("version", "prerelease")
   )
-    console.log(await prepareRelease(values.version, values.prerelease));
+    console.log(await prepareRelease(values.version?.[0], values.prerelease));
   else throw new Failure(usage);
 }
 

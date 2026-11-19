@@ -83,12 +83,19 @@ release workflow sets.
 The release workflow runs these functions as `bun x zeabur-oss-release` (`release/cli.ts`):
 
 ```sh
+zeabur-oss-release check-tag v0.1.1 --changelog CHANGELOG.md --version 0.1.1 [--rehearsal]
+zeabur-oss-release unpublished v0.1.1          # stops if the release of v0.1.1 is published
 zeabur-oss-release notes CHANGELOG.md v0.1.1 --docs https://oss.zeabur.com/docs/builder/  # the notes
 zeabur-oss-release checksums release/assets     # SHA256SUMS of every asset, signed
 zeabur-oss-release draft CHANGELOG.md v0.1.1 release/assets --name "Zeabur Builder" \
   --docs https://oss.zeabur.com/docs/builder/   # the draft release, with its title, notes and files
 zeabur-oss-release verify-assets downloaded     # the signature, the sums, each attestation
 ```
+
+`check-tag` stops unless the tag is `vX.Y.Z` or `vX.Y.Z-<pre-release>` (SemVer without build
+metadata, which an image tag cannot hold), equals `v` and each `--version` (the versions the
+repository's manifests give), has a `CHANGELOG.md` section, and, unless `--rehearsal`, HEAD is on
+`origin/main`.
 
 `draft` creates the draft and uploads every file in one `gh release create`, so no draft exists
 before its files: a maintainer can publish a draft at any time, and a published release takes no

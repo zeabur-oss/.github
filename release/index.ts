@@ -334,6 +334,49 @@ export async function notes(
   return text;
 }
 
+// vX.Y.Z or vX.Y.Z-<pre-release>: SemVer without build metadata, since an image tag cannot hold
+// its +.
+const ident = String.raw`(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const releaseTag = new RegExp(
+  String.raw`^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-${ident}(\.${ident})*)?$`,
+);
+
+// Fails unless the tag can be released: a release tag, `v` and each version the manifests give,
+// with a CHANGELOG.md section, and, unless it is a rehearsal, HEAD on origin/main.
+export async function checkTag(
+  tag: string,
+  changelog: string,
+  versions: string[],
+  rehearsal: boolean,
+) {
+  if (!releaseTag.test(tag))
+    fail(`${tag} is not v and SemVer without build metadata`);
+  for (const version of versions)
+    if (tag !== `v${version}`) fail(`${tag} is not v${version}`);
+  section(await Bun.file(changelog).text(), tag);
+  if (rehearsal) return;
+  const onMain = await $`git merge-base --is-ancestor HEAD origin/main`
+    .nothrow()
+    .quiet();
+  // 1 is the answer no; anything else is git's error.
+  if (onMain.exitCode === 1) fail(`${tag} is not on main`);
+  if (onMain.exitCode !== 0)
+    fail(`cannot check that ${tag} is on main: ${onMain.stderr}`);
+}
+
+// The ids of the tag's draft releases; fails if its release is published.
+export async function unpublished(tag: string): Promise<string[]> {
+  const releases = (
+    await $`gh api --paginate repos/{owner}/{repo}/releases --jq ${`.[] | select(.tag_name == "${tag}") | "\\(.id) \\(.draft)"`}`.text()
+  )
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split(" "));
+  if (releases.some(([, isDraft]) => isDraft !== "true"))
+    fail(`release ${tag} is already published`);
+  return releases.map(([id]) => id);
+}
+
 // Creates the draft release of a tag with its title, notes and every file in <dir> in one
 // `gh release create`, so no draft exists before its files. A maintainer can publish a draft at
 // any time, and a published release takes no more files. A draft that an earlier run left is
@@ -348,15 +391,7 @@ export async function draft(
   const body = await notes(changelog, tag, docs);
   const files = (await readdir(dir)).sort().map((f) => join(dir, f));
   if (files.length === 0) fail(`${dir} has no files for the release`);
-  const releases = (
-    await $`gh api --paginate repos/{owner}/{repo}/releases --jq ${`.[] | select(.tag_name == "${tag}") | "\\(.id) \\(.draft)"`}`.text()
-  )
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => line.split(" "));
-  if (releases.some(([, isDraft]) => isDraft !== "true"))
-    fail(`release ${tag} is already published`);
-  for (const [id] of releases)
+  for (const id of await unpublished(tag))
     await $`gh api -X DELETE repos/{owner}/{repo}/releases/${id}`;
   const prerelease = tag.includes("-") ? ["--prerelease"] : [];
   await $`gh release create ${tag} --verify-tag --draft ${prerelease} --title ${`${name} ${tag}`} --notes ${body} ${files}`;
