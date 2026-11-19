@@ -41,4 +41,4 @@ jobs:
       - name: Type checked
         run: nix develop --command bun check release/ checks/
       - name: Tests, against a registry in memory with images docker saves
-        run: nix develop --command bun test release/
+        run: nix develop --command bun test release/ checks/

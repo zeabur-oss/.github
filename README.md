@@ -81,6 +81,34 @@ jobs:
         run: exit 1
 ```
 
+### Crate levels
+
+A Rust workspace declares its structure in `Cargo.toml`, and its `lint.sh` runs
+`bun x zeabur-oss-levels` ([checks/levels.ts](checks/levels.ts)) to check it. Normal and build
+dependencies count; dev-dependencies do not, so tests may use test helpers.
+
+```toml
+# Every workspace crate; each depends only on workspace crates of a lower level.
+[workspace.metadata.levels]
+example-model = 0
+example = 1
+
+# Optional: crates with no I/O. They depend only on pure workspace crates and, when third-party is
+# given, only on those third-party crates.
+[workspace.metadata.pure]
+crates = ["example-model"]
+third-party = ["serde", "thiserror"]
+
+# Optional: only a composer depends on a module crate.
+[workspace.metadata.modules]
+crates = ["example-modules"]
+composers = ["example"]
+
+# Optional: each crate depends only on the workspace crates listed for it.
+[workspace.metadata.isolated]
+example-proxy = []
+```
+
 ## Change files
 
 A pull request that users notice adds a change file: `knope document-change` writes it to
