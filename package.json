@@ -6,7 +6,8 @@
   "exports": "./release/index.ts",
   "bin": {
     "zeabur-oss-release": "./release/cli.ts",
-    "zeabur-oss-unsafe-report": "./checks/unsafe-report.ts"
+    "zeabur-oss-unsafe-report": "./checks/unsafe-report.ts",
+    "zeabur-oss-levels": "./checks/levels.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",
