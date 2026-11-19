@@ -18,6 +18,7 @@ import { join } from "node:path";
 import {
   Failure,
   Ref,
+  checkTag,
   checksums,
   draft,
   parseDigests,
@@ -30,6 +31,7 @@ import {
   section,
   sha256,
   sums,
+  unpublished,
   verifyAssets,
   verifyChart,
   verifyImage,
@@ -388,6 +390,99 @@ describe("against a registry", () => {
   });
 });
 
+describe("checkTag", () => {
+  let repo: string;
+  let changelog: string;
+  const git = (...args: string[]) => $`git -C ${repo} ${args}`.quiet();
+
+  beforeAll(async () => {
+    repo = await mkdtemp(join(tmpdir(), "release-check-tag-"));
+    changelog = join(repo, "CHANGELOG.md");
+    await writeFile(
+      changelog,
+      "# Changelog\n\n## 0.2.0-rc.1 (2026-11-18)\n\n- A candidate.\n\n## 0.1.1 (2026-11-01)\n\n- One fix.\n",
+    );
+    await git("init", "--quiet", "--initial-branch=main");
+    await git(
+      "-c",
+      "user.name=t",
+      "-c",
+      "user.email=t@example.com",
+      "commit",
+      "--quiet",
+      "--allow-empty",
+      "-m",
+      "main",
+    );
+    await git("update-ref", "refs/remotes/origin/main", "HEAD");
+    await git("checkout", "--quiet", "-b", "side");
+    await git(
+      "-c",
+      "user.name=t",
+      "-c",
+      "user.email=t@example.com",
+      "commit",
+      "--quiet",
+      "--allow-empty",
+      "-m",
+      "side",
+    );
+  });
+
+  afterAll(async () => {
+    await rm(repo, { recursive: true, force: true });
+  });
+
+  const check = async (tag: string, versions: string[], rehearsal: boolean) => {
+    const cwd = process.cwd();
+    process.chdir(repo);
+    try {
+      await checkTag(tag, changelog, versions, rehearsal);
+    } finally {
+      process.chdir(cwd);
+    }
+  };
+
+  test("accepts a release or a pre-release that every manifest gives, with a section", async () => {
+    await check("v0.1.1", ["0.1.1", "0.1.1"], true);
+    await check("v0.2.0-rc.1", [], true);
+  });
+
+  test("refuses a tag that is not v and SemVer without build metadata", async () => {
+    for (const tag of [
+      "0.1.1",
+      "v0.1",
+      "v01.1.1",
+      "v0.1.1+build.1",
+      "v0.1.1-",
+      "vfoo",
+    ])
+      await expect(check(tag, [], true)).rejects.toThrow(
+        `${tag} is not v and SemVer without build metadata`,
+      );
+  });
+
+  test("refuses a tag that a manifest does not give", async () => {
+    await expect(check("v0.1.1", ["0.1.1", "0.1.0"], true)).rejects.toThrow(
+      "v0.1.1 is not v0.1.0",
+    );
+  });
+
+  test("refuses a tag without a CHANGELOG.md section", async () => {
+    await expect(check("v0.3.0", [], true)).rejects.toThrow(
+      "CHANGELOG.md has no section for 0.3.0",
+    );
+  });
+
+  test("refuses HEAD off main unless it is a rehearsal", async () => {
+    await expect(check("v0.1.1", [], false)).rejects.toThrow(
+      "v0.1.1 is not on main",
+    );
+    await git("checkout", "--quiet", "main");
+    await check("v0.1.1", [], false);
+  });
+});
+
 describe("draft", () => {
   let work: string;
   let assets: string;
@@ -466,6 +561,23 @@ describe("draft", () => {
     expect(await calls()).toHaveLength(1);
   });
 
+  test("unpublished passes a tag with no release or only drafts", async () => {
+    process.env.GH_RELEASES = "41 true\n";
+    $.env(process.env);
+    expect(await unpublished("v0.0.1")).toEqual(["41"]);
+    process.env.GH_RELEASES = "";
+    $.env(process.env);
+    expect(await unpublished("v0.0.1")).toEqual([]);
+  });
+
+  test("unpublished refuses a published release", async () => {
+    process.env.GH_RELEASES = "42 false\n";
+    $.env(process.env);
+    await expect(unpublished("v0.0.1")).rejects.toThrow(
+      "release v0.0.1 is already published",
+    );
+  });
+
   test("refuses a directory without files", async () => {
     const empty = join(work, "empty");
     await mkdir(empty);
@@ -488,6 +600,25 @@ describe("the command", () => {
       await $`bun ${cli} notes ${join(dir, "CHANGELOG.md")} v0.1.1 --docs https://oss.zeabur.com/docs/builder/`.text();
     expect(out).toBe(
       "- One fix.\n\nInstall, upgrade and verify: [oss.zeabur.com/docs/builder](https://oss.zeabur.com/docs/builder/)\n",
+    );
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test("check-tag takes each manifest's version", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "release-check-tag-cli-"));
+    await writeFile(
+      join(dir, "CHANGELOG.md"),
+      "# Changelog\n\n## 0.1.1 (2026-10-28)\n\n- One fix.\n",
+    );
+    const run = (...versions: string[]) =>
+      $`bun ${cli} check-tag v0.1.1 --changelog ${join(dir, "CHANGELOG.md")} ${versions.flatMap((v) => ["--version", v])} --rehearsal`
+        .nothrow()
+        .quiet();
+    expect((await run("0.1.1", "0.1.1")).exitCode).toBe(0);
+    const bad = await run("0.1.1", "0.1.0");
+    expect(bad.exitCode).toBe(1);
+    expect(bad.stderr.toString()).toBe(
+      "zeabur-oss-release: v0.1.1 is not v0.1.0\n",
     );
     await rm(dir, { recursive: true, force: true });
   });
