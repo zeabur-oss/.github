@@ -113,7 +113,8 @@ example-proxy = []
 
 A pull request that users notice adds a change file: `knope document-change` writes it to
 `.changeset/`. The Changeset check fails a `feat`, `fix` or `perf` title, or any title with `!`,
-that has neither a change file nor the label `changelog: none`.
+that has neither a change file nor the label `changelog: none`. Until `CHANGELOG.md` has a
+release, a `major` change file fails too: nothing is released, so nothing breaks.
 
 ```yaml
 name: Changeset
