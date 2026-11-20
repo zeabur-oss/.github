@@ -103,6 +103,9 @@ describe("needsChangeFile", () => {
   );
 });
 
+// Captured before any suite changes into its scratch repository.
+const cwd = process.cwd();
+
 const knopeToml = `[package]
 versioned_files = [{ path = "Cargo.toml", regex = '\\[workspace\\.package\\]\\nversion = "(?<version>[^"]+)"' }]
 changelog = "CHANGELOG.md"
@@ -142,7 +145,6 @@ async function scratch(changelog: string, change: string): Promise<string> {
 
 describe("prepareRelease", () => {
   let dir: string;
-  const cwd = process.cwd();
 
   beforeAll(async () => {
     dir = await scratch(
@@ -189,7 +191,6 @@ describe("prepareRelease", () => {
 });
 
 describe("prepareRelease of the first release", () => {
-  const cwd = process.cwd();
   const intro = "# Changelog\n\nAll notable changes.\n";
   let dir: string;
   afterEach(async () => {
