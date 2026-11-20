@@ -154,7 +154,7 @@ on:
         description: "Version instead of the one the change files give (v0.2.0); empty for theirs"
         default: ""
       prerelease:
-        description: "Pre-release label (rc, beta); empty for a normal release"
+        description: "Pre-release label (rc, beta); empty for a normal release. Not with version"
         default: ""
   push:
     branches: [main]

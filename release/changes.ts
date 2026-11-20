@@ -123,6 +123,11 @@ export async function prepareRelease(
     fail(
       `the pre-release label ${prerelease} is not lowercase letters, such as rc or beta`,
     );
+  // knope's --override-version wins over --prerelease-label, so the label would be dropped.
+  if (want && prerelease)
+    fail(
+      `give the version or the pre-release label, not both: ${version} with ${prerelease} would release ${version}; give v${want.replace(/-.*/, "")}-${prerelease}.N as the version, or the label alone`,
+    );
   const args = [
     ...(want ? ["--override-version", want] : []),
     ...(prerelease ? ["--prerelease-label", prerelease] : []),
