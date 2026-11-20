@@ -18,7 +18,7 @@ on:
         type: string
         default: ""
       prerelease:
-        description: The pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release.
+        description: The pre-release label (rc, beta) for vX.Y.Z-<label>.N; empty for a normal release. Not with version.
         type: string
         default: ""
       runner:

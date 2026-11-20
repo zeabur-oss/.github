@@ -187,6 +187,7 @@ describe("prepareRelease", () => {
   test("bad inputs are refused before knope runs", async () => {
     await expect(prepareRelease("0.2")).rejects.toThrow(Failure);
     await expect(prepareRelease(undefined, "RC1")).rejects.toThrow(Failure);
+    await expect(prepareRelease("v0.2.0", "beta")).rejects.toThrow(Failure);
   });
 });
 
