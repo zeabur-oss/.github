@@ -35,11 +35,17 @@ export function packages(knopeToml: string): Record<string, string[]> {
   );
 }
 
+// Whether CHANGELOG.md has a release section. Before the first release nothing can break.
+export function released(changelog: string): boolean {
+  return /^## \S+ \(/m.test(changelog);
+}
+
 // What is wrong with a change file, or undefined. knope skips a file it cannot read, or a package
 // it does not know, without an error, so the check is stricter than knope.
 export function changeFileProblem(
   text: string,
   known: Record<string, string[]>,
+  wasReleased: boolean,
 ): string | undefined {
   const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return "it starts with front matter between --- lines";
@@ -59,6 +65,8 @@ export function changeFileProblem(
       return `${name} is not a package in knope.toml (${Object.keys(known).join(", ")})`;
     if (typeof level !== "string" || !types.includes(level))
       return `${name}: ${level} is not one of ${types.join(", ")}`;
+    if (level === "major" && !wasReleased)
+      return `${name}: major breaks nothing before the first release; use minor`;
   }
   const summary = match[2].split("\n").find((l) => l.trim() !== "");
   if (!summary?.startsWith("# ") || summary.trim() === "#")
@@ -81,6 +89,7 @@ export async function changeset(
   none: boolean,
 ) {
   const known = packages(await Bun.file("knope.toml").text());
+  const wasReleased = released(await Bun.file("CHANGELOG.md").text());
   const files = (
     await $`git diff --name-only --diff-filter=AM ${`${base}...${head}`} -- ${".changeset/*.md"}`.text()
   )
@@ -88,7 +97,11 @@ export async function changeset(
     .filter(Boolean);
   const problems: string[] = [];
   for (const file of files) {
-    const problem = changeFileProblem(await Bun.file(file).text(), known);
+    const problem = changeFileProblem(
+      await Bun.file(file).text(),
+      known,
+      wasReleased,
+    );
     if (problem) problems.push(`${file}: ${problem}`);
   }
   if (needsChangeFile(title) && files.length === 0 && !none)
@@ -114,13 +127,23 @@ export async function prepareRelease(
     ...(want ? ["--override-version", want] : []),
     ...(prerelease ? ["--prerelease-label", prerelease] : []),
   ];
+  const wasReleased = released(await Bun.file("CHANGELOG.md").text());
   // stdout carries only the tag; knope's log and the steps it runs go to stderr.
   await $`knope prepare-release ${args} 1>&2`;
-  const changelog = await Bun.file("CHANGELOG.md").text();
+  // knope appends the first section right after the last line of the introduction.
+  const changelog = (await Bun.file("CHANGELOG.md").text()).replace(
+    /([^\n])\n(?=## \S+ \()/g,
+    "$1\n\n",
+  );
+  await Bun.write("CHANGELOG.md", changelog);
   const top = changelog.match(/^## (\S+) \(/m)?.[1];
   if (!top) fail("knope wrote no ## X.Y.Z (date) section to CHANGELOG.md");
   if (want && top !== want) fail(`knope wrote ## ${top}, not ${want}`);
-  section(changelog, top);
+  const body = section(changelog, top);
+  if (!wasReleased && /^### Breaking Changes$/m.test(body))
+    fail(
+      "the first release has a major change file; change it to minor, as nothing is released to break",
+    );
   const tag = `v${top}`;
   const tagged = await $`git rev-parse -q --verify ${`refs/tags/${tag}`}`
     .quiet()
