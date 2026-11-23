@@ -15,7 +15,7 @@ runs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    - uses: zeabur-oss/.github/actions/ci-setup@2d9e5e7eab9be03f9822ee9497639d4051f8b04d # main
+    - uses: zeabur-oss/.github/actions/ci-setup@0558836e9cf7e00101c99d4fd123276e4a20fe20 # main
     - name: Install the packages
       shell: nix develop --command bash -eo pipefail {0}
       run: bun install --frozen-lockfile
