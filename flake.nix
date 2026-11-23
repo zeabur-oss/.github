@@ -67,6 +67,8 @@
             jactionlint
             shellcheck
             jq
+            ripgrep
+            yq-go
             nixfmt
             knope
           ];
