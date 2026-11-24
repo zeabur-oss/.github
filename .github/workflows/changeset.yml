@@ -25,7 +25,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: zeabur-oss/.github/actions/ci-setup@62d1c60905abda693b30dfdddaf394507507564f # main
+      - uses: zeabur-oss/.github/actions/ci-setup@0558836e9cf7e00101c99d4fd123276e4a20fe20 # main
       - name: Install the packages
         run: nix develop --command bun install --frozen-lockfile
       - name: Check the change file
