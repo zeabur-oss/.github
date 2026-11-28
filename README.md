@@ -27,9 +27,9 @@ runs the same way locally. Each script is bash that starts with `set -euo pipefa
 - Short checks share one job, `lint.sh`. It runs jactionlint on the workflows.
 - Slow jobs run only in the merge queue, on a schedule, by hand or on a tag (the `if:` below).
 - `ok` needs every job and fails when one failed or was cancelled.
-- Every job, `ok` too, runs on Instabox (`instabox-small`, or `-medium` and `-large` for heavy
-  jobs), so no job waits for a GitHub-hosted runner. `ubuntu-26.04` and macOS are only for work
-  that needs that platform.
+- Jobs in the dev shell run on `ubuntu-26.04` (`ubuntu-26.04-arm` for the cluster jobs). Short
+  jobs without Nix, such as `ok`, run on `ubuntu-slim`. The organization is on GitHub Free, so a
+  repository's jobs share about 20 runners at once.
 
 ```yaml
 name: CI
@@ -48,7 +48,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   lint:
-    runs-on: instabox-small
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@<sha> # v7.0.1
@@ -60,7 +60,7 @@ jobs:
       - run: nix develop -c scripts/ci/lint.sh
   kubernetes:
     if: github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref_type == 'branch')
-    runs-on: instabox-small
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@<sha> # v7.0.1
@@ -74,7 +74,7 @@ jobs:
     name: ci / ok
     if: always()
     needs: [lint, kubernetes]
-    runs-on: instabox-small
+    runs-on: ubuntu-slim
     timeout-minutes: 5
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
@@ -194,7 +194,7 @@ Each repository writes its own `.github/workflows/release.yml`, with these jobs:
 ```yaml
 release:
   needs: [publish, attest]
-  runs-on: instabox-small
+  runs-on: ubuntu-26.04
   permissions:
     contents: write
     id-token: write
@@ -208,7 +208,7 @@ release:
         docs: https://oss.zeabur.com/docs/example/
 verify:
   needs: release
-  runs-on: instabox-small
+  runs-on: ubuntu-26.04
   permissions:
     contents: write
     attestations: read

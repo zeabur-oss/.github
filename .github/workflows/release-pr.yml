@@ -24,7 +24,7 @@ on:
       runner:
         description: The runner of the jobs, which run in the caller's dev shell.
         type: string
-        default: instabox-small
+        default: ubuntu-26.04
     secrets:
       private-key:
         description: The private key of zeabur-oss-bot (ZEABUR_OSS_BOT_PRIVATE_KEY).
